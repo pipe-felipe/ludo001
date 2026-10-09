@@ -104,6 +104,8 @@ constexpr char kStyle[] =
     "li a{color:#2563eb;text-decoration:none;font-weight:500;word-break:break-all;}"
     "li a:hover{text-decoration:underline;}"
     ".size{color:#8a93a3;font-size:.8rem;white-space:nowrap;}"
+    ".del{background:none;border:none;color:#b91c1c;font-size:.8rem;cursor:pointer;padding:2px 0;}"
+    ".del:hover{text-decoration:underline;}"
     ".empty{color:#8a93a3;font-style:italic;margin:4px 0 0;}"
     "input[type=file]{display:block;margin-bottom:12px;font-size:.9rem;max-width:100%;}"
     "#status{color:#8a93a3;font-size:.85rem;min-height:1.2em;}"
@@ -174,6 +176,14 @@ constexpr char kFilesPageFoot[] =
     ".then(function(t){document.getElementById('status').textContent=t;location.reload();})"
     ".catch(function(e){document.getElementById('status').textContent='erro: '+e;});"
     "}"
+    "function del(btn){"
+    "var encoded=btn.getAttribute('data-name');"
+    "if(!confirm('Apagar '+decodeURIComponent(encoded)+'?')){return;}"
+    "fetch('/delete/'+encoded,{method:'POST'})"
+    ".then(function(r){return r.text();})"
+    ".then(function(){location.reload();})"
+    ".catch(function(e){alert('erro: '+e);});"
+    "}"
     "</script></body></html>";
 
 // GET /files -- lists the SD card and offers a plain upload form (the
@@ -213,9 +223,11 @@ esp_err_t files_page_handler(httpd_req_t* req) {
 
                 char encoded_name[200];
                 url_encode(entry->d_name, encoded_name, sizeof(encoded_name));
-                char item[760];
-                snprintf(item, sizeof(item), "<li><a href=\"/files/%s\">%s</a><span class=\"size\">%s</span></li>",
-                    encoded_name, entry->d_name, size_text);
+                char item[1100];
+                snprintf(item, sizeof(item),
+                    "<li><a href=\"/files/%s\">%s</a><span class=\"size\">%s</span>"
+                    "<button class=\"del\" data-name=\"%s\" onclick=\"del(this)\">Apagar</button></li>",
+                    encoded_name, entry->d_name, size_text, encoded_name);
                 httpd_resp_send_chunk(req, item, HTTPD_RESP_USE_STRLEN);
             }
             closedir(dir);
@@ -314,6 +326,28 @@ esp_err_t upload_handler(httpd_req_t* req) {
     return httpd_resp_sendstr(req, "OK");
 }
 
+// POST /delete/<name> -- removes the file from the SD card.
+esp_err_t delete_handler(httpd_req_t* req) {
+    char decoded_name[200];
+    url_decode(req->uri + strlen("/delete/"), decoded_name, sizeof(decoded_name));
+
+    if (!sd_card::is_mounted() || !is_safe_filename(decoded_name)) {
+        httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "invalid file name or no SD card");
+        return ESP_FAIL;
+    }
+
+    char path[256];
+    snprintf(path, sizeof(path), "%s/%s", sd_card::mount_point(), decoded_name);
+
+    if (remove(path) != 0) {
+        httpd_resp_send_404(req);
+        return ESP_FAIL;
+    }
+
+    ESP_LOGI(kTag, "deleted %s", decoded_name);
+    return httpd_resp_sendstr(req, "OK");
+}
+
 constexpr httpd_uri_t kRootUri = {
     .uri = "/",
     .method = HTTP_GET,
@@ -342,6 +376,13 @@ constexpr httpd_uri_t kUploadUri = {
     .user_ctx = nullptr,
 };
 
+constexpr httpd_uri_t kDeleteUri = {
+    .uri = "/delete/*",
+    .method = HTTP_POST,
+    .handler = delete_handler,
+    .user_ctx = nullptr,
+};
+
 } // namespace
 
 esp_err_t start() {
@@ -358,7 +399,7 @@ esp_err_t start() {
         return err;
     }
 
-    const httpd_uri_t* uris[] = {&kRootUri, &kFilesPageUri, &kDownloadUri, &kUploadUri};
+    const httpd_uri_t* uris[] = {&kRootUri, &kFilesPageUri, &kDownloadUri, &kUploadUri, &kDeleteUri};
     for (const httpd_uri_t* uri : uris) {
         err = httpd_register_uri_handler(s_server, uri);
         if (err != ESP_OK) {
