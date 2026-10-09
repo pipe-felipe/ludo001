@@ -98,17 +98,20 @@ constexpr char kStyle[] =
     "text-decoration:none;font-weight:600;font-size:.92rem;border:none;cursor:pointer;}"
     ".btn:hover{background:#1d4ed8;}"
     "ul{list-style:none;margin:0;padding:0;}"
-    "li{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:10px 0;"
+    "li{display:flex;align-items:center;gap:10px;padding:10px 0;"
     "border-bottom:1px solid #eef0f3;}"
     "li:last-child{border-bottom:none;}"
-    "li a{color:#2563eb;text-decoration:none;font-weight:500;word-break:break-all;}"
+    "li a{flex:1 1 auto;min-width:0;color:#2563eb;text-decoration:none;font-weight:500;"
+    "overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}"
     "li a:hover{text-decoration:underline;}"
-    ".size{color:#8a93a3;font-size:.8rem;white-space:nowrap;}"
-    ".del{background:none;border:none;color:#b91c1c;font-size:.8rem;cursor:pointer;padding:2px 0;}"
+    ".size{flex:0 0 auto;width:56px;text-align:right;color:#8a93a3;font-size:.8rem;white-space:nowrap;}"
+    ".del{flex:0 0 auto;width:52px;text-align:right;background:none;border:none;color:#b91c1c;"
+    "font-size:.8rem;cursor:pointer;padding:2px 0;}"
     ".del:hover{text-decoration:underline;}"
     ".empty{color:#8a93a3;font-style:italic;margin:4px 0 0;}"
-    "input[type=file]{display:block;margin-bottom:12px;font-size:.9rem;max-width:100%;}"
-    "#status{color:#8a93a3;font-size:.85rem;min-height:1.2em;}"
+    ".upload-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}"
+    "input[type=file]{font-size:.85rem;max-width:100%;}"
+    "#status{color:#8a93a3;font-size:.85rem;min-height:1.2em;margin-top:8px;}"
     "</style>";
 
 esp_err_t root_handler(httpd_req_t* req) {
@@ -131,7 +134,7 @@ esp_err_t root_handler(httpd_req_t* req) {
         std::strcpy(sd_line, "<span class=\"pill bad\">nao montado</span>");
     }
 
-    char body[2048];
+    char body[2304];
     snprintf(body, sizeof(body),
         "<!DOCTYPE html><html><head><meta charset=\"utf-8\">"
         "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">"
@@ -162,8 +165,10 @@ constexpr char kFilesPageFoot[] =
     "</div>"
     "<div class=\"card\">"
     "<h2>Enviar arquivo</h2>"
+    "<div class=\"upload-row\">"
     "<input type=\"file\" id=\"f\">"
     "<button class=\"btn\" onclick=\"up()\">Enviar</button>"
+    "</div>"
     "<p id=\"status\"></p>"
     "</div>"
     "<script>"
