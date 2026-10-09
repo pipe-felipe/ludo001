@@ -5,3 +5,4 @@ sdkconfig.old
 *.o
 *.elf
 *.bin
+.env
