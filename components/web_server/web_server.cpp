@@ -4,6 +4,7 @@
 
 #include "esp_http_server.h"
 #include "esp_log.h"
+#include "mdns.h"
 
 #include "sd_card.hpp"
 #include "wifi_manager.hpp"
@@ -12,8 +13,10 @@ namespace web_server {
 namespace {
 
 constexpr char kTag[] = "web_server";
+constexpr char kHostname[] = "ludo001"; // reachable at http://ludo001.local/
 
 httpd_handle_t s_server = nullptr;
+bool s_mdns_started = false;
 
 esp_err_t root_handler(httpd_req_t* req) {
     char body[512];
@@ -82,12 +85,28 @@ esp_err_t start() {
         return err;
     }
 
+    // Advertise http://ludo001.local/ so the status page stays reachable
+    // regardless of what IP the DHCP server hands out.
+    err = mdns_init();
+    if (err != ESP_OK) {
+        ESP_LOGE(kTag, "mdns_init failed: %s", esp_err_to_name(err));
+    } else {
+        s_mdns_started = true;
+        mdns_hostname_set(kHostname);
+        mdns_instance_name_set("ludo001 status");
+        mdns_service_add("ludo001-http", "_http", "_tcp", 80, nullptr, 0);
+    }
+
     return ESP_OK;
 }
 
 esp_err_t stop() {
     if (s_server == nullptr) {
         return ESP_ERR_INVALID_STATE;
+    }
+    if (s_mdns_started) {
+        mdns_free();
+        s_mdns_started = false;
     }
     esp_err_t err = httpd_stop(s_server);
     s_server = nullptr;
