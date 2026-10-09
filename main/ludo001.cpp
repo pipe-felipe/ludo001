@@ -15,19 +15,18 @@ constexpr char kTag[] = "ludo001";
 
 using oled_display::Ssd1306;
 
-// Fills most of the screen with a checkmark to mean "connected", or an
-// "X" to mean "not connected", inside a border so the icon is readable
-// even if the panel is dim.
-void draw_wifi_status(Ssd1306& display, bool connected) {
+// Connected: shows "IP <address>" in the panel's yellow band (y 0-15).
+// Not connected: shows a two-line message in the blue area below.
+void draw_wifi_status(Ssd1306& display, bool connected, const char* ip) {
     display.clear();
-    display.draw_rect(0, 0, Ssd1306::kWidth, Ssd1306::kHeight);
 
     if (connected) {
-        display.draw_line(30, 34, 50, 50);
-        display.draw_line(50, 50, 95, 15);
+        char line[24];
+        snprintf(line, sizeof(line), "IP %s", ip);
+        display.draw_text(2, 4, line);
     } else {
-        display.draw_line(35, 15, 93, 49);
-        display.draw_line(93, 15, 35, 49);
+        display.draw_text(0, 20, "PRECISO ME CONECTAR");
+        display.draw_text(0, 32, "A UM WIFI");
     }
 
     display.flush();
@@ -41,6 +40,8 @@ extern "C" void app_main(void) {
     bool display_ready = (err == ESP_OK);
     if (!display_ready) {
         ESP_LOGE(kTag, "display init failed: %s", esp_err_to_name(err));
+    } else {
+        draw_wifi_status(display, false, "");
     }
 
     wifi_manager::StaConfig wifi_config{WIFI_SSID, WIFI_PASSWORD};
@@ -56,15 +57,17 @@ extern "C" void app_main(void) {
     bool last_connected = false;
     while (true) {
         bool connected = wifi_manager::is_connected();
+        char ip[16] = "";
+        if (connected) {
+            wifi_manager::get_ip(ip, sizeof(ip));
+        }
 
         if (display_ready && connected != last_connected) {
-            draw_wifi_status(display, connected);
+            draw_wifi_status(display, connected, ip);
             last_connected = connected;
         }
 
         if (connected) {
-            char ip[16];
-            wifi_manager::get_ip(ip, sizeof(ip));
             ESP_LOGI(kTag, "wifi status: CONNECTED ip=%s", ip);
         } else {
             ESP_LOGW(kTag, "wifi status: DISCONNECTED");
