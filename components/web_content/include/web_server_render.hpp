@@ -21,13 +21,21 @@ std::string render_wifi_line(bool connected, const char* ip);
 std::string render_sd_line(bool mounted, uint64_t capacity_mb);
 
 struct FileEntry {
-    std::string name;      // raw display name from the filesystem
-    std::string size_text; // already formatted, e.g. "36 B"
+    std::string name;            // raw display name from the filesystem
+    std::string size_text;       // already formatted, e.g. "36 B"; empty for directories
+    bool is_dir = false;
 };
 
-// Renders the <ul> of files (href targets are percent-encoded internally),
-// or an "empty" message if `entries` is empty.
-std::string render_file_list(const std::vector<FileEntry>& entries);
+// Title for the files page: "Arquivos no SD" at the root, or
+// "Pasta: /a/b" while browsing a subdirectory.
+std::string render_dir_title(const std::string& current_dir);
+
+// Renders the listing for one directory: an "up" link (unless at the
+// root), then the <ul> of entries (href/data-name targets are
+// percent-encoded per path segment internally) or an "empty" message.
+// `current_dir` is the already-decoded path being listed, with real '/'
+// separators and no leading/trailing slash ("" for the root).
+std::string render_file_list(const std::vector<FileEntry>& entries, const std::string& current_dir);
 
 // Replaces each "{{token}}" in `tmpl` with its paired value. A token with
 // no matching pair, or a pair with no matching token, is left/ignored.

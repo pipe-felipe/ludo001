@@ -4,6 +4,7 @@
 #include <cstring>
 #include <dirent.h>
 #include <sys/stat.h>
+#include <unistd.h>
 #include <vector>
 
 #include "esp_http_server.h"
@@ -86,58 +87,102 @@ esp_err_t root_handler(httpd_req_t* req) {
     return httpd_resp_send(req, body.c_str(), body.size());
 }
 
-// GET /files -- lists the SD card and offers a plain upload form (the
-// upload itself is a raw-body fetch(), not multipart/form-data, to avoid
-// writing a multipart parser for what's meant to be a minimal tool).
-esp_err_t files_page_handler(httpd_req_t* req) {
+// Shared by the root listing ("/files") and directory browsing under
+// "/files/*" (see files_item_handler) once a target turns out to be a
+// directory rather than a file. `relative_dir` has no leading/trailing
+// slash ("" for the root).
+esp_err_t render_directory(httpd_req_t* req, const std::string& relative_dir) {
     std::string list_html;
     if (!sd_card::is_mounted()) {
         list_html = "<p class=\"empty\">SD card nao montado.</p>";
     } else {
-        DIR* dir = opendir(sd_card::mount_point());
-        if (dir == nullptr) {
-            list_html = "<p class=\"empty\">Nao foi possivel abrir o SD.</p>";
-        } else {
-            std::vector<FileEntry> entries;
-            struct dirent* entry;
-            while ((entry = readdir(dir)) != nullptr) {
-                if (entry->d_name[0] == '.') {
-                    continue;
-                }
-                char full_path[300];
-                snprintf(full_path, sizeof(full_path), "%s/%s", sd_card::mount_point(), entry->d_name);
-                struct stat st {};
-                char size_text[24] = "";
-                if (stat(full_path, &st) == 0) {
-                    format_size(static_cast<long>(st.st_size), size_text, sizeof(size_text));
-                }
-                entries.push_back(FileEntry{entry->d_name, size_text});
-            }
-            closedir(dir);
-            list_html = render_file_list(entries);
+        std::string full_dir = sd_card::mount_point();
+        if (!relative_dir.empty()) {
+            full_dir += "/" + relative_dir;
         }
+        DIR* dir = opendir(full_dir.c_str());
+        if (dir == nullptr) {
+            httpd_resp_send_404(req);
+            return ESP_FAIL;
+        }
+        std::vector<FileEntry> entries;
+        struct dirent* entry;
+        while ((entry = readdir(dir)) != nullptr) {
+            if (entry->d_name[0] == '.') {
+                continue;
+            }
+            std::string child_path = full_dir + "/" + entry->d_name;
+            struct stat st {};
+            if (stat(child_path.c_str(), &st) != 0) {
+                continue; // unreadable entry; skip rather than fail the whole listing
+            }
+            FileEntry fe;
+            fe.name = entry->d_name;
+            if (S_ISDIR(st.st_mode)) {
+                fe.is_dir = true;
+            } else {
+                char size_text[24];
+                format_size(static_cast<long>(st.st_size), size_text, sizeof(size_text));
+                fe.size_text = size_text;
+            }
+            entries.push_back(std::move(fe));
+        }
+        closedir(dir);
+        list_html = render_file_list(entries, relative_dir);
     }
 
-    std::string body =
-        render_template(embedded_text(files_html_start, files_html_end), {{"FILE_LIST", list_html}});
+    std::string body = render_template(embedded_text(files_html_start, files_html_end),
+        {{"DIR_TITLE", render_dir_title(relative_dir)}, {"FILE_LIST", list_html}});
 
     httpd_resp_set_type(req, "text/html");
     return httpd_resp_send(req, body.c_str(), body.size());
 }
 
-// GET /files/<name> -- streams the file back with a Content-Disposition
-// that makes the browser save it instead of trying to render it.
-esp_err_t download_handler(httpd_req_t* req) {
-    char decoded_name[200];
+// GET /files -- the root directory listing, plus a plain upload form (the
+// upload itself is a raw-body fetch(), not multipart/form-data, to avoid
+// writing a multipart parser for what's meant to be a minimal tool).
+esp_err_t files_page_handler(httpd_req_t* req) {
+    return render_directory(req, "");
+}
+
+// GET /files/<path> -- either streams a file back (with a
+// Content-Disposition that makes the browser save it instead of trying to
+// render it) or, if <path> names a directory, browses into it via
+// render_directory(). <path> may be several segments deep
+// ("folder/sub/file.txt"), matching how a folder upload lays files out
+// (see upload_handler).
+esp_err_t files_item_handler(httpd_req_t* req) {
+    char decoded_name[256];
     url_decode(req->uri + strlen("/files/"), decoded_name, sizeof(decoded_name));
 
-    if (!sd_card::is_mounted() || !is_safe_filename(decoded_name)) {
+    size_t len = strlen(decoded_name);
+    if (len > 0 && decoded_name[len - 1] == '/') {
+        decoded_name[len - 1] = '\0'; // normalize a directory link's trailing slash
+    }
+
+    if (!sd_card::is_mounted()) {
+        httpd_resp_send_404(req);
+        return ESP_FAIL;
+    }
+    if (decoded_name[0] == '\0') {
+        return render_directory(req, ""); // "/files/" with nothing after it
+    }
+    if (!is_safe_filename(decoded_name)) {
         httpd_resp_send_404(req);
         return ESP_FAIL;
     }
 
-    char path[256];
+    char path[400];
     snprintf(path, sizeof(path), "%s/%s", sd_card::mount_point(), decoded_name);
+
+    struct stat st {};
+    if (stat(path, &st) != 0) {
+        httpd_resp_send_404(req);
+        return ESP_FAIL;
+    }
+    if (S_ISDIR(st.st_mode)) {
+        return render_directory(req, decoded_name);
+    }
 
     FILE* file = fopen(path, "rb");
     if (file == nullptr) {
@@ -146,7 +191,7 @@ esp_err_t download_handler(httpd_req_t* req) {
     }
 
     httpd_resp_set_type(req, "application/octet-stream");
-    char content_disposition[256];
+    char content_disposition[300];
     snprintf(content_disposition, sizeof(content_disposition), "attachment; filename=\"%s\"", decoded_name);
     httpd_resp_set_hdr(req, "Content-Disposition", content_disposition);
 
@@ -164,11 +209,30 @@ esp_err_t download_handler(httpd_req_t* req) {
     return err;
 }
 
-// POST /upload/<name> -- writes the raw request body to the SD card. The
+// Creates every directory in `relative_path`'s prefix under mount_point
+// (e.g. "a/b/c.txt" -> "a", then "a/b"), so a folder upload's nested files
+// land in the right place. Failures are ignored here: if a directory
+// genuinely can't be created, the fopen() that follows will fail and
+// report it.
+void ensure_parent_dirs(const char* mount_point, const char* relative_path) {
+    std::string path = mount_point;
+    const char* p = relative_path;
+    const char* slash;
+    while ((slash = strchr(p, '/')) != nullptr) {
+        path += '/';
+        path.append(p, static_cast<size_t>(slash - p));
+        mkdir(path.c_str(), 0755);
+        p = slash + 1;
+    }
+}
+
+// POST /upload/<path> -- writes the raw request body to the SD card. The
 // page's JS (web/app.js) sends the File object directly as the body, so
-// there's no multipart boundary to parse.
+// there's no multipart boundary to parse. <path> may be several segments
+// deep ("folder/sub/file.txt") for a folder upload; ensure_parent_dirs()
+// creates whatever directories that needs first.
 esp_err_t upload_handler(httpd_req_t* req) {
-    char decoded_name[200];
+    char decoded_name[256];
     url_decode(req->uri + strlen("/upload/"), decoded_name, sizeof(decoded_name));
 
     if (!sd_card::is_mounted() || !is_safe_filename(decoded_name)) {
@@ -176,7 +240,9 @@ esp_err_t upload_handler(httpd_req_t* req) {
         return ESP_FAIL;
     }
 
-    char path[256];
+    ensure_parent_dirs(sd_card::mount_point(), decoded_name);
+
+    char path[400];
     snprintf(path, sizeof(path), "%s/%s", sd_card::mount_point(), decoded_name);
 
     FILE* file = fopen(path, "wb");
@@ -215,9 +281,41 @@ esp_err_t upload_handler(httpd_req_t* req) {
     return httpd_resp_sendstr(req, "OK");
 }
 
-// POST /delete/<name> -- removes the file from the SD card.
+// Deletes a file, or a directory and everything under it.
+bool remove_recursive(const std::string& path) {
+    struct stat st {};
+    if (stat(path.c_str(), &st) != 0) {
+        return false;
+    }
+    if (!S_ISDIR(st.st_mode)) {
+        return remove(path.c_str()) == 0;
+    }
+
+    DIR* dir = opendir(path.c_str());
+    if (dir == nullptr) {
+        return false;
+    }
+    bool ok = true;
+    struct dirent* entry;
+    while ((entry = readdir(dir)) != nullptr) {
+        if (entry->d_name[0] == '.') {
+            continue;
+        }
+        if (!remove_recursive(path + "/" + entry->d_name)) {
+            ok = false;
+        }
+    }
+    closedir(dir);
+    if (rmdir(path.c_str()) != 0) {
+        ok = false;
+    }
+    return ok;
+}
+
+// POST /delete/<path> -- removes a file, or a whole folder (recursively),
+// from the SD card.
 esp_err_t delete_handler(httpd_req_t* req) {
-    char decoded_name[200];
+    char decoded_name[256];
     url_decode(req->uri + strlen("/delete/"), decoded_name, sizeof(decoded_name));
 
     if (!sd_card::is_mounted() || !is_safe_filename(decoded_name)) {
@@ -225,10 +323,10 @@ esp_err_t delete_handler(httpd_req_t* req) {
         return ESP_FAIL;
     }
 
-    char path[256];
+    char path[400];
     snprintf(path, sizeof(path), "%s/%s", sd_card::mount_point(), decoded_name);
 
-    if (remove(path) != 0) {
+    if (!remove_recursive(path)) {
         httpd_resp_send_404(req);
         return ESP_FAIL;
     }
@@ -265,10 +363,10 @@ constexpr httpd_uri_t kFilesPageUri = {
     .user_ctx = nullptr,
 };
 
-constexpr httpd_uri_t kDownloadUri = {
+constexpr httpd_uri_t kFilesItemUri = {
     .uri = "/files/*",
     .method = HTTP_GET,
-    .handler = download_handler,
+    .handler = files_item_handler,
     .user_ctx = nullptr,
 };
 
@@ -295,6 +393,11 @@ esp_err_t start() {
 
     httpd_config_t config = HTTPD_DEFAULT_CONFIG();
     config.uri_match_fn = httpd_uri_match_wildcard; // needed for "/files/*" and "/upload/*"
+    // Default 4096 isn't enough for render_directory()'s call chain (a
+    // FileEntry vector, several std::strings, and render_file_list()'s
+    // char item[1300]/encoded_name[200] buffers) -- confirmed via a
+    // captured StoreProhibited panic while browsing a subdirectory.
+    config.stack_size = 8192;
     esp_err_t err = httpd_start(&s_server, &config);
     if (err != ESP_OK) {
         ESP_LOGE(kTag, "httpd_start failed: %s", esp_err_to_name(err));
@@ -303,7 +406,7 @@ esp_err_t start() {
     }
 
     const httpd_uri_t* uris[] = {
-        &kRootUri, &kStyleCssUri, &kAppJsUri, &kFilesPageUri, &kDownloadUri, &kUploadUri, &kDeleteUri};
+        &kRootUri, &kStyleCssUri, &kAppJsUri, &kFilesPageUri, &kFilesItemUri, &kUploadUri, &kDeleteUri};
     for (const httpd_uri_t* uri : uris) {
         err = httpd_register_uri_handler(s_server, uri);
         if (err != ESP_OK) {

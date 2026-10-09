@@ -34,13 +34,13 @@ void test_render_sd_line_not_mounted() {
 }
 
 void test_render_file_list_empty() {
-    std::string html = render_file_list({});
-    TEST_ASSERT_NOT_NULL(strstr(html.c_str(), "Nenhum arquivo"));
+    std::string html = render_file_list({}, "");
+    TEST_ASSERT_NOT_NULL(strstr(html.c_str(), "Pasta vazia"));
 }
 
 void test_render_file_list_single_entry() {
     std::vector<FileEntry> entries = {{"log.txt", "36 B"}};
-    std::string html = render_file_list(entries);
+    std::string html = render_file_list(entries, "");
     TEST_ASSERT_NOT_NULL(strstr(html.c_str(), "href=\"/files/log.txt\""));
     TEST_ASSERT_NOT_NULL(strstr(html.c_str(), ">log.txt<"));
     TEST_ASSERT_NOT_NULL(strstr(html.c_str(), "36 B"));
@@ -49,16 +49,61 @@ void test_render_file_list_single_entry() {
 
 void test_render_file_list_encodes_name_with_space_in_href() {
     std::vector<FileEntry> entries = {{"my file.txt", "1.0 KB"}};
-    std::string html = render_file_list(entries);
+    std::string html = render_file_list(entries, "");
     TEST_ASSERT_NOT_NULL(strstr(html.c_str(), "href=\"/files/my%20file.txt\""));
     TEST_ASSERT_NOT_NULL(strstr(html.c_str(), ">my file.txt<")); // display text stays unencoded
 }
 
 void test_render_file_list_multiple_entries_all_present() {
     std::vector<FileEntry> entries = {{"a.txt", "1 B"}, {"b.txt", "2 B"}};
-    std::string html = render_file_list(entries);
+    std::string html = render_file_list(entries, "");
     TEST_ASSERT_NOT_NULL(strstr(html.c_str(), "a.txt"));
     TEST_ASSERT_NOT_NULL(strstr(html.c_str(), "b.txt"));
+}
+
+void test_render_file_list_root_has_no_up_link() {
+    std::vector<FileEntry> entries = {{"a.txt", "1 B"}};
+    std::string html = render_file_list(entries, "");
+    TEST_ASSERT_NULL(strstr(html.c_str(), "class=\"up\""));
+}
+
+void test_render_file_list_subdir_has_up_link_to_parent() {
+    std::vector<FileEntry> entries = {{"a.txt", "1 B"}};
+    std::string html = render_file_list(entries, "folder1/folder2");
+    TEST_ASSERT_NOT_NULL(strstr(html.c_str(), "href=\"/files/folder1\">"));
+}
+
+void test_render_file_list_top_level_subdir_up_link_goes_to_root() {
+    std::vector<FileEntry> entries = {{"a.txt", "1 B"}};
+    std::string html = render_file_list(entries, "folder1");
+    TEST_ASSERT_NOT_NULL(strstr(html.c_str(), "href=\"/files/\">"));
+}
+
+void test_render_file_list_directory_entry_has_trailing_slash_and_no_size() {
+    std::vector<FileEntry> entries;
+    FileEntry dir_entry;
+    dir_entry.name = "pasta";
+    dir_entry.is_dir = true;
+    entries.push_back(dir_entry);
+    std::string html = render_file_list(entries, "");
+    TEST_ASSERT_NOT_NULL(strstr(html.c_str(), "href=\"/files/pasta/\""));
+    TEST_ASSERT_NOT_NULL(strstr(html.c_str(), "class=\"dir\""));
+    TEST_ASSERT_NOT_NULL(strstr(html.c_str(), "<span class=\"size\"></span>"));
+}
+
+void test_render_file_list_nested_entry_includes_current_dir_in_paths() {
+    std::vector<FileEntry> entries = {{"file.txt", "5 B"}};
+    std::string html = render_file_list(entries, "folder1");
+    TEST_ASSERT_NOT_NULL(strstr(html.c_str(), "href=\"/files/folder1/file.txt\""));
+    TEST_ASSERT_NOT_NULL(strstr(html.c_str(), "data-name=\"folder1/file.txt\""));
+}
+
+void test_render_dir_title_root() {
+    TEST_ASSERT_EQUAL_STRING("Arquivos no SD", render_dir_title("").c_str());
+}
+
+void test_render_dir_title_subdir() {
+    TEST_ASSERT_EQUAL_STRING("Pasta: /folder1/folder2", render_dir_title("folder1/folder2").c_str());
 }
 
 void test_render_template_substitutes_token() {
