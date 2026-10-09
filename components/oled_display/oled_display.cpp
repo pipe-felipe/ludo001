@@ -1,5 +1,6 @@
 #include "oled_display.hpp"
 
+#include <cstdlib>
 #include <cstring>
 
 #include "esp_log.h"
@@ -12,7 +13,7 @@ constexpr char kTag[] = "oled_display";
 // Standard SSD1306 128x64 init sequence (internal charge pump). Based on
 // the sequence confirmed to light this exact panel (see the `embedded`
 // skill's oled-ssd1306-096 hardware notes), with the addressing mode
-// switched to horizontal (0x20, 0x01) so flush() can write the whole
+// switched to horizontal (0x20, 0x00) so flush() can write the whole
 // framebuffer in a single contiguous transfer.
 constexpr uint8_t kInitSequence[] = {
     0xAE,       // display off
@@ -21,7 +22,7 @@ constexpr uint8_t kInitSequence[] = {
     0xD3, 0x00, // display offset = 0
     0x40,       // display start line = 0
     0x8D, 0x14, // enable charge pump
-    0x20, 0x01, // memory addressing mode = horizontal
+    0x20, 0x00, // memory addressing mode = horizontal (A[1:0]: 00=horizontal, 01=vertical, 10=page)
     0xA1,       // segment remap
     0xC8,       // COM output scan direction, remapped
     0xDA, 0x12, // COM pins hardware configuration
@@ -114,6 +115,21 @@ void Ssd1306::draw_hline(int x, int y, int length, bool on) {
 void Ssd1306::draw_vline(int x, int y, int length, bool on) {
     for (int i = 0; i < length; ++i) {
         set_pixel(x, y + i, on);
+    }
+}
+
+void Ssd1306::draw_line(int x0, int y0, int x1, int y1, bool on) {
+    int dx = x1 - x0;
+    int dy = y1 - y0;
+    int steps = std::abs(dx) > std::abs(dy) ? std::abs(dx) : std::abs(dy);
+    if (steps == 0) {
+        set_pixel(x0, y0, on);
+        return;
+    }
+    for (int i = 0; i <= steps; ++i) {
+        int x = x0 + dx * i / steps;
+        int y = y0 + dy * i / steps;
+        set_pixel(x, y, on);
     }
 }
 

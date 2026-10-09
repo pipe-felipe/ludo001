@@ -34,6 +34,7 @@ public:
     void draw_hline(int x, int y, int length, bool on = true);
     void draw_vline(int x, int y, int length, bool on = true);
     void draw_rect(int x, int y, int width, int height, bool on = true);
+    void draw_line(int x0, int y0, int x1, int y1, bool on = true);
 
     // Pushes the framebuffer to the panel over I2C.
     esp_err_t flush();

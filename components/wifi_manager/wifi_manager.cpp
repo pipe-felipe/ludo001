@@ -22,7 +22,9 @@ bool s_started = false;
 char s_ip[16] = {0};
 
 void event_handler(void* /*arg*/, esp_event_base_t base, int32_t id, void* data) {
-    if (base == WIFI_EVENT && id == WIFI_EVENT_STA_DISCONNECTED) {
+    if (base == WIFI_EVENT && id == WIFI_EVENT_STA_START) {
+        esp_wifi_connect();
+    } else if (base == WIFI_EVENT && id == WIFI_EVENT_STA_DISCONNECTED) {
         s_ip[0] = '\0';
         xEventGroupClearBits(s_event_group, kConnectedBit);
         esp_wifi_connect();
