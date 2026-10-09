@@ -1,5 +1,7 @@
 #pragma once
 
+#include <cstdint>
+
 #include "esp_err.h"
 
 // Local status page served over esp_http_server (the ESP-IDF-native HTTP
@@ -12,5 +14,15 @@ namespace web_server {
 esp_err_t start();
 esp_err_t stop();
 bool is_running();
+
+struct UploadProgress {
+    bool active = false;
+    uint8_t percent = 0;
+};
+
+// Snapshot of the in-progress upload (if any), so other tasks -- e.g. the
+// OLED display loop -- can show a progress bar without touching httpd
+// internals.
+UploadProgress upload_progress();
 
 } // namespace web_server

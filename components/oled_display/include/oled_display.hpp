@@ -35,11 +35,12 @@ public:
     void draw_hline(int x, int y, int length, bool on = true);
     void draw_vline(int x, int y, int length, bool on = true);
     void draw_rect(int x, int y, int width, int height, bool on = true);
+    void fill_rect(int x, int y, int width, int height, bool on = true);
     void draw_line(int x0, int y0, int x1, int y1, bool on = true);
 
     // Stroke-font text. Supports 'A'-'Z'/'a'-'z' (rendered as
-    // uppercase), '0'-'9', ' ' and '.'; unsupported characters are
-    // skipped (cursor still advances). Each glyph is kGlyphWidth x
+    // uppercase), '0'-'9', ' ', '.', '/' and ':'; unsupported characters
+    // are skipped (cursor still advances). Each glyph is kGlyphWidth x
     // kGlyphHeight, advancing by kGlyphAdvance per character.
     static constexpr int kGlyphWidth = 5;
     static constexpr int kGlyphHeight = 7;

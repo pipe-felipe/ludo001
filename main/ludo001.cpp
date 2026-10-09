@@ -17,9 +17,15 @@ constexpr char kTag[] = "ludo001";
 
 using oled_display::Ssd1306;
 
-// Connected: shows "IP <address>" in the panel's yellow band (y 0-15).
-// Not connected: shows a two-line message in the blue area below.
-void draw_wifi_status(Ssd1306& display, bool connected, const char* ip) {
+constexpr int kBarX = 4;
+constexpr int kBarY = 20;
+constexpr int kBarW = 120;
+constexpr int kBarH = 8;
+
+// Yellow band (y 0-15): Wi-Fi status, as "IP <address>" or "SEM WIFI".
+// Blue area (y 16-63): upload progress bar, file count and SD space.
+void draw_status(Ssd1306& display, bool connected, const char* ip, uint32_t file_count,
+    uint64_t used_mb, uint64_t free_mb, web_server::UploadProgress progress) {
     display.clear();
 
     if (connected) {
@@ -27,9 +33,23 @@ void draw_wifi_status(Ssd1306& display, bool connected, const char* ip) {
         snprintf(line, sizeof(line), "IP %s", ip);
         display.draw_text(2, 4, line);
     } else {
-        display.draw_text(0, 20, "PRECISO ME CONECTAR");
-        display.draw_text(0, 32, "A UM WIFI");
+        display.draw_text(2, 4, "SEM WIFI");
     }
+
+    display.draw_rect(kBarX, kBarY, kBarW, kBarH);
+    if (progress.active && progress.percent > 0) {
+        int fill_w = (kBarW - 2) * progress.percent / 100;
+        display.fill_rect(kBarX + 1, kBarY + 1, fill_w, kBarH - 2);
+    }
+
+    char items_line[24];
+    snprintf(items_line, sizeof(items_line), "ITENS %lu", static_cast<unsigned long>(file_count));
+    display.draw_text(0, 32, items_line);
+
+    char mem_line[32];
+    snprintf(mem_line, sizeof(mem_line), "USO %llu/%lluMB",
+        static_cast<unsigned long long>(used_mb), static_cast<unsigned long long>(free_mb));
+    display.draw_text(0, 44, mem_line);
 
     display.flush();
 }
@@ -43,7 +63,7 @@ extern "C" void app_main(void) {
     if (!display_ready) {
         ESP_LOGE(kTag, "display init failed: %s", esp_err_to_name(err));
     } else {
-        draw_wifi_status(display, false, "");
+        draw_status(display, false, "", 0, 0, 0, web_server::UploadProgress{});
     }
 
     wifi_manager::StaConfig wifi_config{WIFI_SSID, WIFI_PASSWORD};
@@ -78,17 +98,23 @@ extern "C" void app_main(void) {
             wifi_manager::get_ip(ip, sizeof(ip));
         }
 
-        if (display_ready && connected != last_connected) {
-            draw_wifi_status(display, connected, ip);
+        if (connected != last_connected) {
+            if (connected) {
+                ESP_LOGI(kTag, "wifi status: CONNECTED ip=%s", ip);
+            } else {
+                ESP_LOGW(kTag, "wifi status: DISCONNECTED");
+            }
             last_connected = connected;
         }
 
-        if (connected) {
-            ESP_LOGI(kTag, "wifi status: CONNECTED ip=%s", ip);
-        } else {
-            ESP_LOGW(kTag, "wifi status: DISCONNECTED");
+        if (display_ready) {
+            uint32_t file_count = sd_card::file_count();
+            uint64_t used_mb = 0;
+            uint64_t free_mb = 0;
+            sd_card::space_info(&used_mb, &free_mb);
+            draw_status(display, connected, ip, file_count, used_mb, free_mb, web_server::upload_progress());
         }
 
-        vTaskDelay(pdMS_TO_TICKS(2000));
+        vTaskDelay(pdMS_TO_TICKS(400));
     }
 }

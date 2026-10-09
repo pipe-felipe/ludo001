@@ -7,6 +7,7 @@
 
 #include "esp_http_server.h"
 #include "esp_log.h"
+#include "freertos/FreeRTOS.h"
 #include "mdns.h"
 
 #include "sd_card.hpp"
@@ -20,6 +21,19 @@ constexpr char kHostname[] = "ludo001"; // reachable at http://ludo001.local/
 
 httpd_handle_t s_server = nullptr;
 bool s_mdns_started = false;
+
+// Written by the httpd task inside upload_handler, read by the display
+// loop (a different task); a spinlock keeps the read/write atomic without
+// pulling in a full mutex for two small fields.
+portMUX_TYPE s_progress_lock = portMUX_INITIALIZER_UNLOCKED;
+UploadProgress s_progress;
+
+void set_progress(bool active, uint8_t percent) {
+    portENTER_CRITICAL(&s_progress_lock);
+    s_progress.active = active;
+    s_progress.percent = percent;
+    portEXIT_CRITICAL(&s_progress_lock);
+}
 
 int hex_value(char c) {
     if (c >= '0' && c <= '9') return c - '0';
@@ -309,8 +323,11 @@ esp_err_t upload_handler(httpd_req_t* req) {
         return ESP_FAIL;
     }
 
+    const int total = req->content_len;
+    int remaining = total;
+    set_progress(true, 0);
+
     char buffer[1024];
-    int remaining = req->content_len;
     while (remaining > 0) {
         int received = httpd_req_recv(req, buffer, remaining < static_cast<int>(sizeof(buffer)) ? remaining : sizeof(buffer));
         if (received == HTTPD_SOCK_ERR_TIMEOUT) {
@@ -319,13 +336,18 @@ esp_err_t upload_handler(httpd_req_t* req) {
         if (received <= 0) {
             fclose(file);
             remove(path);
+            set_progress(false, 0);
             httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "upload interrupted");
             return ESP_FAIL;
         }
         fwrite(buffer, 1, received, file);
         remaining -= received;
+        if (total > 0) {
+            set_progress(true, static_cast<uint8_t>((total - remaining) * 100 / total));
+        }
     }
     fclose(file);
+    set_progress(false, 0);
 
     ESP_LOGI(kTag, "uploaded %s", decoded_name);
     return httpd_resp_sendstr(req, "OK");
@@ -445,6 +467,13 @@ esp_err_t stop() {
 
 bool is_running() {
     return s_server != nullptr;
+}
+
+UploadProgress upload_progress() {
+    portENTER_CRITICAL(&s_progress_lock);
+    UploadProgress out = s_progress;
+    portEXIT_CRITICAL(&s_progress_lock);
+    return out;
 }
 
 } // namespace web_server

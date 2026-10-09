@@ -123,6 +123,13 @@ void Ssd1306::draw_char(int x, int y, char c, bool on) {
         case '.':
             set_pixel(x + 1, y + kGlyphHeight - 1, on);
             return;
+        case '/':
+            draw_line(x, y + kGlyphHeight - 1, x + kGlyphWidth - 1, y, on);
+            return;
+        case ':':
+            set_pixel(x + 2, y + 2, on);
+            set_pixel(x + 2, y + 5, on);
+            return;
         default:
             return; // space or unsupported character: just advance
     }
@@ -241,6 +248,12 @@ void Ssd1306::draw_rect(int x, int y, int width, int height, bool on) {
     draw_hline(x, y + height - 1, width, on);
     draw_vline(x, y, height, on);
     draw_vline(x + width - 1, y, height, on);
+}
+
+void Ssd1306::fill_rect(int x, int y, int width, int height, bool on) {
+    for (int row = 0; row < height; ++row) {
+        draw_hline(x, y + row, width, on);
+    }
 }
 
 esp_err_t Ssd1306::flush() {
