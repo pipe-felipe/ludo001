@@ -86,4 +86,8 @@ uint64_t capacity_mb() {
     return static_cast<uint64_t>(s_card->csd.capacity) * s_card->csd.sector_size / (1024 * 1024);
 }
 
+const char* mount_point() {
+    return s_mounted ? s_mount_point : "";
+}
+
 } // namespace sd_card

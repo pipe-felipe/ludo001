@@ -33,4 +33,7 @@ bool is_mounted();
 // Card capacity in megabytes, or 0 if not mounted.
 uint64_t capacity_mb();
 
+// VFS mount point in use (e.g. "/sdcard"), or "" if not mounted.
+const char* mount_point();
+
 } // namespace sd_card

@@ -6,6 +6,7 @@
 #include "freertos/task.h"
 
 #include "oled_display.hpp"
+#include "sd_card.hpp"
 #include "web_server.hpp"
 #include "wifi_manager.hpp"
 #include "wifi_credentials.h" // generated at build time from .env, see main/CMakeLists.txt
@@ -53,6 +54,13 @@ extern "C" void app_main(void) {
         ESP_LOGI(kTag, "wifi connected, ssid=%s ip=%s", WIFI_SSID, ip);
     } else {
         ESP_LOGE(kTag, "wifi connect failed: ssid=%s error=%s", WIFI_SSID, esp_err_to_name(err));
+    }
+
+    err = sd_card::mount();
+    if (err == ESP_OK) {
+        ESP_LOGI(kTag, "sd card mounted, capacity=%llu MB", static_cast<unsigned long long>(sd_card::capacity_mb()));
+    } else {
+        ESP_LOGE(kTag, "sd card mount failed: %s", esp_err_to_name(err));
     }
 
     err = web_server::start();
