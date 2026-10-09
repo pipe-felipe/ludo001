@@ -3,6 +3,7 @@
 #include <cstdio>
 #include <cstring>
 #include <dirent.h>
+#include <sys/stat.h>
 
 #include "esp_http_server.h"
 #include "esp_log.h"
@@ -68,54 +69,101 @@ bool is_safe_filename(const char* name) {
     return name[0] != '\0' && name[0] != '/' && std::strstr(name, "..") == nullptr;
 }
 
-esp_err_t root_handler(httpd_req_t* req) {
-    char body[512];
+void format_size(long size, char* out, size_t out_size) {
+    if (size < 1024) {
+        snprintf(out, out_size, "%ld B", size);
+    } else if (size < 1024 * 1024) {
+        snprintf(out, out_size, "%.1f KB", size / 1024.0);
+    } else {
+        snprintf(out, out_size, "%.1f MB", size / (1024.0 * 1024.0));
+    }
+}
 
+// Shared across both pages. Plain CSS, no external fonts/scripts, so the
+// whole UI still comes from a single request to the device.
+constexpr char kStyle[] =
+    "<style>"
+    "*{box-sizing:border-box;}"
+    "body{margin:0;padding:28px 16px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;"
+    "background:#f1f4f8;color:#1f2430;}"
+    ".card{max-width:420px;margin:0 auto 16px;background:#fff;border-radius:14px;"
+    "box-shadow:0 2px 10px rgba(0,0,0,.07);padding:22px 24px;}"
+    "h1{margin:0 0 14px;font-size:1.3rem;}"
+    "h2{margin:4px 0 12px;font-size:1rem;color:#555;}"
+    "p{margin:8px 0;}"
+    ".pill{display:inline-block;padding:2px 10px;border-radius:999px;font-size:.82rem;font-weight:600;}"
+    ".ok{background:#dcfce7;color:#15803d;}"
+    ".bad{background:#fee2e2;color:#b91c1c;}"
+    ".btn{display:inline-block;background:#2563eb;color:#fff;padding:9px 16px;border-radius:8px;"
+    "text-decoration:none;font-weight:600;font-size:.92rem;border:none;cursor:pointer;}"
+    ".btn:hover{background:#1d4ed8;}"
+    "ul{list-style:none;margin:0;padding:0;}"
+    "li{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:10px 0;"
+    "border-bottom:1px solid #eef0f3;}"
+    "li:last-child{border-bottom:none;}"
+    "li a{color:#2563eb;text-decoration:none;font-weight:500;word-break:break-all;}"
+    "li a:hover{text-decoration:underline;}"
+    ".size{color:#8a93a3;font-size:.8rem;white-space:nowrap;}"
+    ".empty{color:#8a93a3;font-style:italic;margin:4px 0 0;}"
+    "input[type=file]{display:block;margin-bottom:12px;font-size:.9rem;max-width:100%;}"
+    "#status{color:#8a93a3;font-size:.85rem;min-height:1.2em;}"
+    "</style>";
+
+esp_err_t root_handler(httpd_req_t* req) {
     bool wifi_connected = wifi_manager::is_connected();
-    char ip[16] = "-";
+    char wifi_line[64];
     if (wifi_connected) {
+        char ip[16];
         wifi_manager::get_ip(ip, sizeof(ip));
+        snprintf(wifi_line, sizeof(wifi_line), "<span class=\"pill ok\">conectado</span> %s", ip);
+    } else {
+        std::strcpy(wifi_line, "<span class=\"pill bad\">desconectado</span>");
     }
 
     bool sd_mounted = sd_card::is_mounted();
-    uint64_t sd_mb = sd_mounted ? sd_card::capacity_mb() : 0;
-
+    char sd_line[48];
     if (sd_mounted) {
-        snprintf(body, sizeof(body),
-            "<!DOCTYPE html><html><head><meta charset=\"utf-8\">"
-            "<title>ludo001</title></head><body>"
-            "<h1>ludo001</h1>"
-            "<p>Wi-Fi: %s (IP %s)</p>"
-            "<p>SD card: montado, %llu MB</p>"
-            "<p><a href=\"/files\">arquivos</a></p>"
-            "</body></html>",
-            wifi_connected ? "conectado" : "desconectado", ip,
-            static_cast<unsigned long long>(sd_mb));
+        snprintf(sd_line, sizeof(sd_line), "<span class=\"pill ok\">montado</span> %llu MB",
+            static_cast<unsigned long long>(sd_card::capacity_mb()));
     } else {
-        snprintf(body, sizeof(body),
-            "<!DOCTYPE html><html><head><meta charset=\"utf-8\">"
-            "<title>ludo001</title></head><body>"
-            "<h1>ludo001</h1>"
-            "<p>Wi-Fi: %s (IP %s)</p>"
-            "<p>SD card: nao montado</p>"
-            "<p><a href=\"/files\">arquivos</a></p>"
-            "</body></html>",
-            wifi_connected ? "conectado" : "desconectado", ip);
+        std::strcpy(sd_line, "<span class=\"pill bad\">nao montado</span>");
     }
+
+    char body[2048];
+    snprintf(body, sizeof(body),
+        "<!DOCTYPE html><html><head><meta charset=\"utf-8\">"
+        "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">"
+        "<title>ludo001</title>%s</head><body>"
+        "<div class=\"card\">"
+        "<h1>ludo001</h1>"
+        "<p>Wi-Fi: %s</p>"
+        "<p>SD card: %s</p>"
+        "<p><a class=\"btn\" href=\"/files\">Ver arquivos</a></p>"
+        "</div>"
+        "</body></html>",
+        kStyle, wifi_line, sd_line);
 
     httpd_resp_set_type(req, "text/html");
     return httpd_resp_sendstr(req, body);
 }
 
-constexpr char kFilesPageHead[] =
+constexpr char kFilesPageHeadTop[] =
     "<!DOCTYPE html><html><head><meta charset=\"utf-8\">"
-    "<title>ludo001 - arquivos</title></head><body>"
-    "<h1>Arquivos no SD</h1>";
+    "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">"
+    "<title>ludo001 - arquivos</title>";
+
+constexpr char kFilesPageHeadBottom[] =
+    "</head><body>"
+    "<div class=\"card\"><h1>Arquivos no SD</h1>";
 
 constexpr char kFilesPageFoot[] =
+    "</div>"
+    "<div class=\"card\">"
     "<h2>Enviar arquivo</h2>"
-    "<input type=\"file\" id=\"f\"><button onclick=\"up()\">Enviar</button>"
+    "<input type=\"file\" id=\"f\">"
+    "<button class=\"btn\" onclick=\"up()\">Enviar</button>"
     "<p id=\"status\"></p>"
+    "</div>"
     "<script>"
     "function up(){"
     "var f=document.getElementById('f').files[0];"
@@ -133,29 +181,49 @@ constexpr char kFilesPageFoot[] =
 // writing a multipart parser for what's meant to be a minimal tool).
 esp_err_t files_page_handler(httpd_req_t* req) {
     httpd_resp_set_type(req, "text/html");
-    httpd_resp_send_chunk(req, kFilesPageHead, HTTPD_RESP_USE_STRLEN);
+    httpd_resp_send_chunk(req, kFilesPageHeadTop, HTTPD_RESP_USE_STRLEN);
+    httpd_resp_send_chunk(req, kStyle, HTTPD_RESP_USE_STRLEN);
+    httpd_resp_send_chunk(req, kFilesPageHeadBottom, HTTPD_RESP_USE_STRLEN);
 
     if (!sd_card::is_mounted()) {
-        httpd_resp_send_chunk(req, "<p>SD card nao montado.</p>", HTTPD_RESP_USE_STRLEN);
+        httpd_resp_send_chunk(req, "<p class=\"empty\">SD card nao montado.</p>", HTTPD_RESP_USE_STRLEN);
     } else {
         DIR* dir = opendir(sd_card::mount_point());
         if (dir == nullptr) {
-            httpd_resp_send_chunk(req, "<p>Nao foi possivel abrir o SD.</p>", HTTPD_RESP_USE_STRLEN);
+            httpd_resp_send_chunk(req, "<p class=\"empty\">Nao foi possivel abrir o SD.</p>", HTTPD_RESP_USE_STRLEN);
         } else {
-            httpd_resp_send_chunk(req, "<ul>", HTTPD_RESP_USE_STRLEN);
+            bool any_entries = false;
             struct dirent* entry;
             while ((entry = readdir(dir)) != nullptr) {
                 if (entry->d_name[0] == '.') {
                     continue;
                 }
+                if (!any_entries) {
+                    httpd_resp_send_chunk(req, "<ul>", HTTPD_RESP_USE_STRLEN);
+                    any_entries = true;
+                }
+
+                char full_path[300];
+                snprintf(full_path, sizeof(full_path), "%s/%s", sd_card::mount_point(), entry->d_name);
+                struct stat st {};
+                char size_text[24] = "";
+                if (stat(full_path, &st) == 0) {
+                    format_size(static_cast<long>(st.st_size), size_text, sizeof(size_text));
+                }
+
                 char encoded_name[200];
                 url_encode(entry->d_name, encoded_name, sizeof(encoded_name));
-                char item[700];
-                snprintf(item, sizeof(item), "<li><a href=\"/files/%s\">%s</a></li>", encoded_name, entry->d_name);
+                char item[760];
+                snprintf(item, sizeof(item), "<li><a href=\"/files/%s\">%s</a><span class=\"size\">%s</span></li>",
+                    encoded_name, entry->d_name, size_text);
                 httpd_resp_send_chunk(req, item, HTTPD_RESP_USE_STRLEN);
             }
             closedir(dir);
-            httpd_resp_send_chunk(req, "</ul>", HTTPD_RESP_USE_STRLEN);
+            if (any_entries) {
+                httpd_resp_send_chunk(req, "</ul>", HTTPD_RESP_USE_STRLEN);
+            } else {
+                httpd_resp_send_chunk(req, "<p class=\"empty\">Nenhum arquivo ainda.</p>", HTTPD_RESP_USE_STRLEN);
+            }
         }
     }
 
