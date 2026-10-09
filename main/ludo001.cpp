@@ -26,30 +26,31 @@ constexpr int kBarH = 8;
 // Blue area (y 16-63): upload progress bar, file count and SD space.
 void draw_status(Ssd1306& display, bool connected, const char* ip, uint32_t file_count,
     uint64_t used_mb, uint64_t free_mb, web_server::UploadProgress progress) {
-    display.clear();
+    auto& fb = display.framebuffer();
+    fb.clear();
 
     if (connected) {
         char line[24];
         snprintf(line, sizeof(line), "IP %s", ip);
-        display.draw_text(2, 4, line);
+        fb.draw_text(2, 4, line);
     } else {
-        display.draw_text(2, 4, "SEM WIFI");
+        fb.draw_text(2, 4, "SEM WIFI");
     }
 
-    display.draw_rect(kBarX, kBarY, kBarW, kBarH);
+    fb.draw_rect(kBarX, kBarY, kBarW, kBarH);
     if (progress.active && progress.percent > 0) {
         int fill_w = (kBarW - 2) * progress.percent / 100;
-        display.fill_rect(kBarX + 1, kBarY + 1, fill_w, kBarH - 2);
+        fb.fill_rect(kBarX + 1, kBarY + 1, fill_w, kBarH - 2);
     }
 
     char items_line[24];
     snprintf(items_line, sizeof(items_line), "ITENS %lu", static_cast<unsigned long>(file_count));
-    display.draw_text(0, 32, items_line);
+    fb.draw_text(0, 32, items_line);
 
     char mem_line[32];
     snprintf(mem_line, sizeof(mem_line), "USO %llu/%lluMB",
         static_cast<unsigned long long>(used_mb), static_cast<unsigned long long>(free_mb));
-    display.draw_text(0, 44, mem_line);
+    fb.draw_text(0, 44, mem_line);
 
     display.flush();
 }
