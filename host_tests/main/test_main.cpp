@@ -63,6 +63,20 @@ void test_render_template_substitutes_token();
 void test_render_template_multiple_tokens();
 void test_render_template_unknown_token_left_alone();
 
+// web_server_zip
+void test_crc32_of_nothing_is_zero();
+void test_crc32_check_value();
+void test_crc32_chunked_matches_one_shot();
+void test_zip_local_header_file_layout();
+void test_zip_local_header_directory_has_no_data_descriptor_flag();
+void test_zip_data_descriptor_layout();
+void test_zip_central_header_layout();
+void test_zip_central_header_directory_attribute();
+void test_zip_end_of_central_dir_layout();
+void test_zip_within_limits_accepts_folder_under_4gb();
+void test_zip_within_limits_rejects_archive_over_4gb();
+void test_zip_within_limits_rejects_too_many_entries();
+
 extern "C" void app_main(void) {
     UNITY_BEGIN();
 
@@ -121,6 +135,19 @@ extern "C" void app_main(void) {
     RUN_TEST(test_render_template_substitutes_token);
     RUN_TEST(test_render_template_multiple_tokens);
     RUN_TEST(test_render_template_unknown_token_left_alone);
+
+    RUN_TEST(test_crc32_of_nothing_is_zero);
+    RUN_TEST(test_crc32_check_value);
+    RUN_TEST(test_crc32_chunked_matches_one_shot);
+    RUN_TEST(test_zip_local_header_file_layout);
+    RUN_TEST(test_zip_local_header_directory_has_no_data_descriptor_flag);
+    RUN_TEST(test_zip_data_descriptor_layout);
+    RUN_TEST(test_zip_central_header_layout);
+    RUN_TEST(test_zip_central_header_directory_attribute);
+    RUN_TEST(test_zip_end_of_central_dir_layout);
+    RUN_TEST(test_zip_within_limits_accepts_folder_under_4gb);
+    RUN_TEST(test_zip_within_limits_rejects_archive_over_4gb);
+    RUN_TEST(test_zip_within_limits_rejects_too_many_entries);
 
     std::exit(UNITY_END());
 }

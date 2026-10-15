@@ -2,6 +2,6 @@
 # (esp32) and for IDF_TARGET=linux (host_tests/). web_server links this to
 # avoid duplicating the string-building logic in its httpd handlers.
 idf_component_register(
-    SRCS "web_server_util.cpp" "web_server_render.cpp"
+    SRCS "web_server_util.cpp" "web_server_render.cpp" "web_server_zip.cpp"
     INCLUDE_DIRS "include"
 )
