@@ -13,6 +13,7 @@
 #include "mdns.h"
 #include "web_server_render.hpp"
 #include "web_server_util.hpp"
+#include "web_server_zip.hpp"
 
 #include "sd_card.hpp"
 #include "wifi_manager.hpp"
@@ -335,6 +336,173 @@ esp_err_t delete_handler(httpd_req_t* req) {
     return httpd_resp_sendstr(req, "OK");
 }
 
+// Appends an entry for everything under `full_dir` (an SD card path) to
+// `entries`, recursively, each named `prefix` + its path below `full_dir`.
+// Folders get their own "<name>/" entry so empty ones survive the round
+// trip. Dotfiles and unreadable entries are skipped, matching what
+// render_directory() lists.
+void collect_zip_entries(const std::string& full_dir, const std::string& prefix, std::vector<ZipEntry>& entries) {
+    DIR* dir = opendir(full_dir.c_str());
+    if (dir == nullptr) {
+        return;
+    }
+    struct dirent* entry;
+    while ((entry = readdir(dir)) != nullptr) {
+        if (entry->d_name[0] == '.') {
+            continue;
+        }
+        std::string child_path = full_dir + "/" + entry->d_name;
+        struct stat st {};
+        if (stat(child_path.c_str(), &st) != 0) {
+            continue;
+        }
+        ZipEntry zip_entry;
+        zip_entry.name = prefix + entry->d_name;
+        if (S_ISDIR(st.st_mode)) {
+            zip_entry.name += '/';
+            entries.push_back(zip_entry);
+            collect_zip_entries(child_path, zip_entry.name, entries);
+        } else {
+            zip_entry.size = static_cast<uint32_t>(st.st_size);
+            entries.push_back(std::move(zip_entry));
+        }
+    }
+    closedir(dir);
+}
+
+// Sends `record` as one chunk and moves `offset` (the archive's running
+// byte count) past it.
+bool send_zip_record(httpd_req_t* req, const std::string& record, uint32_t& offset) {
+    offset += static_cast<uint32_t>(record.size());
+    return httpd_resp_send_chunk(req, record.data(), record.size()) == ESP_OK;
+}
+
+// Sends one file's bytes as the data of `entry`, computing its CRC-32 on
+// the way. False if the file can't be read in full or the client went
+// away, so the caller can abort instead of finishing a corrupt archive.
+bool send_zip_file_data(httpd_req_t* req, const std::string& path, ZipEntry& entry) {
+    FILE* file = fopen(path.c_str(), "rb");
+    if (file == nullptr) {
+        return false;
+    }
+    char buffer[1024];
+    size_t read_bytes;
+    uint32_t crc = 0;
+    uint32_t sent = 0;
+    bool ok = true;
+    while ((read_bytes = fread(buffer, 1, sizeof(buffer), file)) > 0) {
+        crc = crc32_update(crc, reinterpret_cast<const uint8_t*>(buffer), read_bytes);
+        sent += static_cast<uint32_t>(read_bytes);
+        if (httpd_resp_send_chunk(req, buffer, read_bytes) != ESP_OK) {
+            ok = false;
+            break;
+        }
+    }
+    fclose(file);
+    entry.crc32 = crc;
+    return ok && sent == entry.size;
+}
+
+// GET /zip/<path> -- downloads the folder at <path>, and everything under
+// it, as one .zip built while it streams (records from web_server_zip.hpp),
+// so no file is ever held in memory. Entry names start with the folder's
+// own name, so the .zip unpacks into a folder of the same name. Once the
+// first chunk is out the status code can't change anymore: on a failure
+// the handler returns ESP_FAIL without the final empty chunk, httpd drops
+// the connection, and the browser marks the download as failed instead
+// of saving a truncated archive.
+esp_err_t zip_handler(httpd_req_t* req) {
+    char decoded_name[256];
+    url_decode(req->uri + strlen("/zip/"), decoded_name, sizeof(decoded_name));
+
+    // Strip every trailing slash: "/zip/pasta//" must not leave an empty
+    // folder name, which would put "/..." names in the archive.
+    size_t len = strlen(decoded_name);
+    while (len > 0 && decoded_name[len - 1] == '/') {
+        decoded_name[--len] = '\0';
+    }
+
+    if (!sd_card::is_mounted() || !is_safe_filename(decoded_name)) {
+        httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "invalid folder name or no SD card");
+        return ESP_FAIL;
+    }
+
+    std::string full_dir = std::string(sd_card::mount_point()) + "/" + decoded_name;
+    struct stat st {};
+    if (stat(full_dir.c_str(), &st) != 0 || !S_ISDIR(st.st_mode)) {
+        httpd_resp_send_404(req);
+        return ESP_FAIL;
+    }
+
+    // Entry names are relative to the folder's parent ("fotos/a.jpg" for
+    // /zip/viagem/fotos), so parent_dir + an entry's name is its SD path.
+    const char* slash = strrchr(decoded_name, '/');
+    const char* folder_name = (slash != nullptr) ? slash + 1 : decoded_name;
+    std::string parent_dir = full_dir.substr(0, full_dir.size() - strlen(folder_name));
+
+    std::vector<ZipEntry> entries;
+    ZipEntry root;
+    root.name = std::string(folder_name) + "/";
+    entries.push_back(root);
+    collect_zip_entries(full_dir, root.name, entries);
+
+    if (!zip_within_limits(entries)) {
+        httpd_resp_send_err(req, HTTPD_413_CONTENT_TOO_LARGE, "folder too large for .zip (max 4 GB, 65535 items)");
+        return ESP_FAIL;
+    }
+
+    // folder_name comes from a path stat() just found on the FAT card, and
+    // FAT names can't contain '"' or control characters, so it can't break
+    // out of the quoted header value.
+    httpd_resp_set_type(req, "application/zip");
+    char content_disposition[300];
+    snprintf(content_disposition, sizeof(content_disposition), "attachment; filename=\"%s.zip\"", folder_name);
+    httpd_resp_set_hdr(req, "Content-Disposition", content_disposition);
+
+    std::string record;
+    uint32_t offset = 0;
+    for (ZipEntry& entry : entries) {
+        entry.local_header_offset = offset;
+        record.clear();
+        zip_append_local_header(record, entry);
+        if (!send_zip_record(req, record, offset)) {
+            return ESP_FAIL;
+        }
+        if (entry.name.back() == '/') {
+            continue;
+        }
+        if (!send_zip_file_data(req, parent_dir + entry.name, entry)) {
+            ESP_LOGE(kTag, "zip of %s aborted at %s", decoded_name, entry.name.c_str());
+            return ESP_FAIL;
+        }
+        offset += entry.size;
+        record.clear();
+        zip_append_data_descriptor(record, entry);
+        if (!send_zip_record(req, record, offset)) {
+            return ESP_FAIL;
+        }
+    }
+
+    const uint32_t central_dir_offset = offset;
+    for (const ZipEntry& entry : entries) {
+        record.clear();
+        zip_append_central_header(record, entry);
+        if (!send_zip_record(req, record, offset)) {
+            return ESP_FAIL;
+        }
+    }
+    record.clear();
+    zip_append_end_of_central_dir(
+        record, static_cast<uint16_t>(entries.size()), offset - central_dir_offset, central_dir_offset);
+    if (!send_zip_record(req, record, offset)) {
+        return ESP_FAIL;
+    }
+    httpd_resp_send_chunk(req, nullptr, 0);
+
+    ESP_LOGI(kTag, "zipped %s (%u entries)", decoded_name, static_cast<unsigned>(entries.size()));
+    return ESP_OK;
+}
+
 constexpr httpd_uri_t kRootUri = {
     .uri = "/",
     .method = HTTP_GET,
@@ -384,6 +552,13 @@ constexpr httpd_uri_t kDeleteUri = {
     .user_ctx = nullptr,
 };
 
+constexpr httpd_uri_t kZipUri = {
+    .uri = "/zip/*",
+    .method = HTTP_GET,
+    .handler = zip_handler,
+    .user_ctx = nullptr,
+};
+
 } // namespace
 
 esp_err_t start() {
@@ -406,7 +581,7 @@ esp_err_t start() {
     }
 
     const httpd_uri_t* uris[] = {
-        &kRootUri, &kStyleCssUri, &kAppJsUri, &kFilesPageUri, &kFilesItemUri, &kUploadUri, &kDeleteUri};
+        &kRootUri, &kStyleCssUri, &kAppJsUri, &kFilesPageUri, &kFilesItemUri, &kUploadUri, &kDeleteUri, &kZipUri};
     for (const httpd_uri_t* uri : uris) {
         err = httpd_register_uri_handler(s_server, uri);
         if (err != ESP_OK) {
