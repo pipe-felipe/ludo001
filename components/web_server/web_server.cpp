@@ -570,7 +570,7 @@ esp_err_t start() {
     config.uri_match_fn = httpd_uri_match_wildcard; // needed for "/files/*" and "/upload/*"
     // Default 4096 isn't enough for render_directory()'s call chain (a
     // FileEntry vector, several std::strings, and render_file_list()'s
-    // char item[1300]/encoded_name[200] buffers) -- confirmed via a
+    // char item[1800]/encoded_name[200] buffers) -- confirmed via a
     // captured StoreProhibited panic while browsing a subdirectory.
     config.stack_size = 8192;
     esp_err_t err = httpd_start(&s_server, &config);

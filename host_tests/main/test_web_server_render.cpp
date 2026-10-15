@@ -98,6 +98,39 @@ void test_render_file_list_nested_entry_includes_current_dir_in_paths() {
     TEST_ASSERT_NOT_NULL(strstr(html.c_str(), "data-name=\"folder1/file.txt\""));
 }
 
+void test_render_file_list_directory_entry_has_zip_link() {
+    std::vector<FileEntry> entries;
+    FileEntry dir_entry;
+    dir_entry.name = "pasta";
+    dir_entry.is_dir = true;
+    entries.push_back(dir_entry);
+    std::string html = render_file_list(entries, "");
+    TEST_ASSERT_NOT_NULL(strstr(html.c_str(), "<a class=\"zip\" href=\"/zip/pasta\">Baixar</a>"));
+}
+
+void test_render_file_list_nested_directory_zip_link_includes_current_dir() {
+    std::vector<FileEntry> entries;
+    FileEntry dir_entry;
+    dir_entry.name = "sub";
+    dir_entry.is_dir = true;
+    entries.push_back(dir_entry);
+    std::string html = render_file_list(entries, "folder1");
+    TEST_ASSERT_NOT_NULL(strstr(html.c_str(), "href=\"/zip/folder1/sub\""));
+}
+
+void test_render_file_list_file_entry_has_download_link() {
+    std::vector<FileEntry> entries = {{"a.txt", "1 B"}};
+    std::string html = render_file_list(entries, "");
+    TEST_ASSERT_NOT_NULL(strstr(html.c_str(), "<a class=\"zip\" href=\"/files/a.txt\">Baixar</a>"));
+    TEST_ASSERT_NULL(strstr(html.c_str(), "/zip/")); // a single file is served as is, not zipped
+}
+
+void test_render_file_list_nested_file_download_link_includes_current_dir() {
+    std::vector<FileEntry> entries = {{"file.txt", "5 B"}};
+    std::string html = render_file_list(entries, "folder1");
+    TEST_ASSERT_NOT_NULL(strstr(html.c_str(), "<a class=\"zip\" href=\"/files/folder1/file.txt\">Baixar</a>"));
+}
+
 void test_render_dir_title_root() {
     TEST_ASSERT_EQUAL_STRING("Arquivos no SD", render_dir_title("").c_str());
 }

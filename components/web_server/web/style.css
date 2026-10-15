@@ -127,6 +127,13 @@ li a:hover {
     text-decoration: underline;
 }
 
+.zip {
+    flex: 0 0 auto;
+    width: 52px;
+    text-align: right;
+    font-size: .8rem;
+}
+
 .dir {
     font-weight: 700;
 }

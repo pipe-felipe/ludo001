@@ -53,7 +53,7 @@ std::string render_file_list(const std::vector<FileEntry>& entries, const std::s
 
     out += "<ul>";
     char encoded_name[200];
-    char item[1300];
+    char item[1800];
     for (const FileEntry& entry : entries) {
         url_encode(entry.name.c_str(), encoded_name, sizeof(encoded_name));
         std::string rel_path = current_dir.empty() ? std::string(encoded_name) : current_dir + "/" + encoded_name;
@@ -61,13 +61,15 @@ std::string render_file_list(const std::vector<FileEntry>& entries, const std::s
         if (entry.is_dir) {
             snprintf(item, sizeof(item),
                 "<li><a class=\"dir\" href=\"/files/%s/\">%s/</a><span class=\"size\"></span>"
+                "<a class=\"zip\" href=\"/zip/%s\">Baixar</a>"
                 "<button class=\"del\" data-name=\"%s\" onclick=\"del(this)\">Apagar</button></li>",
-                rel_path.c_str(), entry.name.c_str(), rel_path.c_str());
+                rel_path.c_str(), entry.name.c_str(), rel_path.c_str(), rel_path.c_str());
         } else {
             snprintf(item, sizeof(item),
                 "<li><a href=\"/files/%s\">%s</a><span class=\"size\">%s</span>"
+                "<a class=\"zip\" href=\"/files/%s\">Baixar</a>"
                 "<button class=\"del\" data-name=\"%s\" onclick=\"del(this)\">Apagar</button></li>",
-                rel_path.c_str(), entry.name.c_str(), entry.size_text.c_str(), rel_path.c_str());
+                rel_path.c_str(), entry.name.c_str(), entry.size_text.c_str(), rel_path.c_str(), rel_path.c_str());
         }
         out += item;
     }
