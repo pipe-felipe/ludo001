@@ -102,6 +102,32 @@ li a:hover {
     text-decoration: underline;
 }
 
+/* Icons are drawn here, not in the listing's HTML: the first link of a row
+   is the name, and it is a folder when it has class "dir". */
+li > a:first-child::before {
+    content: "";
+    display: inline-block;
+    width: 12px;
+    height: 15px;
+    margin-right: 8px;
+    vertical-align: -3px;
+    border-radius: 2px;
+    background:
+        linear-gradient(#fff, #fff) 3px 8px / 6px 1px no-repeat,
+        linear-gradient(#fff, #fff) 3px 11px / 6px 1px no-repeat,
+        linear-gradient(225deg, transparent 4px, #64748b 4px 5.5px, #94a3b8 5.5px);
+}
+
+li > a.dir:first-child::before {
+    width: 16px;
+    height: 12px;
+    margin-right: 4px; /* 16 + 4 = 12 + 8, so folder and file names line up */
+    vertical-align: -2px;
+    background:
+        linear-gradient(#d97706, #d97706) 0 0 / 7px 4px no-repeat,
+        linear-gradient(#fbbf24, #fbbf24) 0 3px / 100% 9px no-repeat;
+}
+
 .size {
     flex: 0 0 auto;
     width: 56px;
