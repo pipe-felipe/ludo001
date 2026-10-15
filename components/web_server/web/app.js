@@ -106,6 +106,33 @@ function upDir() {
     next();
 }
 
+// Lowercase and strip accents, so "relatorio" finds "Relatório".
+function plain(text) {
+    return text.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+}
+
+// Hides the rows of the current folder whose name lacks any of the typed
+// words. The whole folder is already on the page, so nothing is requested.
+function filterList(query) {
+    var terms = plain(query).split(/\s+/).filter(Boolean);
+    var rows = document.querySelectorAll('ul li');
+    var shown = 0;
+    var lastShown = null;
+    for (var i = 0; i < rows.length; i++) {
+        var name = plain(rows[i].querySelector('a').textContent);
+        var match = terms.every(function (t) { return name.indexOf(t) >= 0; });
+        rows[i].hidden = !match;
+        rows[i].classList.remove('last');
+        if (match) {
+            shown++;
+            lastShown = rows[i];
+        }
+    }
+    if (lastShown) { lastShown.classList.add('last'); } // li:last-child may be a hidden row
+    document.getElementById('no-match').hidden = shown > 0 || rows.length === 0;
+    document.querySelector('ul').scrollTop = 0;
+}
+
 // Dropping a file on the file box works like choosing it. (Folders are not
 // handled: a dropped folder arrives as an entry, not as a list of files.)
 (function () {
@@ -127,4 +154,10 @@ function upDir() {
     // A reload can leave a chosen file in the input; reflect it in the box.
     picked(input);
     picked(document.getElementById('d'));
+    // The search box only makes sense when there is something to search; a
+    // reload can also leave text in it.
+    if (document.querySelector('ul li')) {
+        document.getElementById('search').hidden = false;
+        filterList(document.getElementById('q').value);
+    }
 })();

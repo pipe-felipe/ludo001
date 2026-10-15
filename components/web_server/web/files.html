@@ -11,7 +11,11 @@
 <body>
     <div class="card">
         <h1>{{DIR_TITLE}}</h1>
+        <label class="search" id="search" hidden>
+            <input type="search" id="q" placeholder="Buscar nesta pasta" autocomplete="off" oninput="filterList(this.value)">
+        </label>
         {{FILE_LIST}}
+        <p class="empty" id="no-match" hidden>Nenhum arquivo encontrado.</p>
     </div>
     <div class="card">
         <h2>Enviar para o SD</h2>
