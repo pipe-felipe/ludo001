@@ -52,6 +52,11 @@ bool is_safe_filename(const char* name) {
     return name[0] != '\0' && name[0] != '/' && std::strstr(name, "..") == nullptr;
 }
 
+std::string numbered_name(const std::string& path, unsigned n) {
+    size_t name_start = path.find_last_of('/') + 1; // no '/': npos + 1 wraps to 0, the whole path is the name
+    return path.substr(0, name_start) + std::to_string(n) + "-" + path.substr(name_start);
+}
+
 void format_size(long size, char* out, size_t out_size) {
     if (size < 1024) {
         snprintf(out, out_size, "%ld B", size);

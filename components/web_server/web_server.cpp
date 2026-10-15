@@ -231,7 +231,8 @@ void ensure_parent_dirs(const char* mount_point, const char* relative_path) {
 // page's JS (web/app.js) sends the File object directly as the body, so
 // there's no multipart boundary to parse. <path> may be several segments
 // deep ("folder/sub/file.txt") for a folder upload; ensure_parent_dirs()
-// creates whatever directories that needs first.
+// creates whatever directories that needs first. A name that already
+// exists on the card gets a number prefix instead of being overwritten.
 esp_err_t upload_handler(httpd_req_t* req) {
     char decoded_name[256];
     url_decode(req->uri + strlen("/upload/"), decoded_name, sizeof(decoded_name));
@@ -243,8 +244,18 @@ esp_err_t upload_handler(httpd_req_t* req) {
 
     ensure_parent_dirs(sd_card::mount_point(), decoded_name);
 
+    // Never overwrite: if the name is taken (by a file or a folder), the
+    // upload is stored as "1-<name>", then "2-<name>", and so on.
+    std::string final_name = decoded_name;
     char path[400];
-    snprintf(path, sizeof(path), "%s/%s", sd_card::mount_point(), decoded_name);
+    struct stat existing {};
+    for (unsigned n = 1;; ++n) {
+        snprintf(path, sizeof(path), "%s/%s", sd_card::mount_point(), final_name.c_str());
+        if (stat(path, &existing) != 0) {
+            break;
+        }
+        final_name = numbered_name(decoded_name, n);
+    }
 
     FILE* file = fopen(path, "wb");
     if (file == nullptr) {
@@ -278,7 +289,7 @@ esp_err_t upload_handler(httpd_req_t* req) {
     fclose(file);
     set_progress(false, 0);
 
-    ESP_LOGI(kTag, "uploaded %s", decoded_name);
+    ESP_LOGI(kTag, "uploaded %s", final_name.c_str());
     return httpd_resp_sendstr(req, "OK");
 }
 

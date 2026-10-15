@@ -42,6 +42,9 @@ void test_is_safe_filename_accepts_dot_in_middle();
 void test_format_size_bytes();
 void test_format_size_kilobytes();
 void test_format_size_megabytes();
+void test_numbered_name_prefixes_plain_file_name();
+void test_numbered_name_keeps_folder_path();
+void test_numbered_name_keeps_dots_and_spaces();
 
 // web_server_render
 void test_render_wifi_line_connected();
@@ -120,6 +123,9 @@ extern "C" void app_main(void) {
     RUN_TEST(test_format_size_bytes);
     RUN_TEST(test_format_size_kilobytes);
     RUN_TEST(test_format_size_megabytes);
+    RUN_TEST(test_numbered_name_prefixes_plain_file_name);
+    RUN_TEST(test_numbered_name_keeps_folder_path);
+    RUN_TEST(test_numbered_name_keeps_dots_and_spaces);
 
     RUN_TEST(test_render_wifi_line_connected);
     RUN_TEST(test_render_wifi_line_disconnected);

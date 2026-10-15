@@ -102,3 +102,15 @@ void test_format_size_megabytes() {
     format_size(1024L * 1024L, out, sizeof(out));
     TEST_ASSERT_EQUAL_STRING("1.0 MB", out);
 }
+
+void test_numbered_name_prefixes_plain_file_name() {
+    TEST_ASSERT_EQUAL_STRING("1-foto.jpg", numbered_name("foto.jpg", 1).c_str());
+}
+
+void test_numbered_name_keeps_folder_path() {
+    TEST_ASSERT_EQUAL_STRING("a/b/2-foto.jpg", numbered_name("a/b/foto.jpg", 2).c_str());
+}
+
+void test_numbered_name_keeps_dots_and_spaces() {
+    TEST_ASSERT_EQUAL_STRING("12-upload test.tar.gz", numbered_name("upload test.tar.gz", 12).c_str());
+}
