@@ -294,4 +294,4 @@ O HTML/CSS/JS da interface e o servidor em si (`httpd`, cartão SD) não têm te
 
 ## Licença
 
-Este repositório ainda não tem um arquivo de licença. Até que um seja adicionado, vale a regra padrão: sem licença expressa, o código não pode ser reutilizado livremente.
+Distribuído sob a [licença MIT](LICENSE).
