@@ -1,11 +1,69 @@
+function formatSize(bytes) {
+    if (bytes < 1024) { return bytes + ' B'; }
+    if (bytes < 1024 * 1024) { return (bytes / 1024).toFixed(1) + ' KB'; }
+    return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+}
+
+function setStatus(text, isError) {
+    var el = document.getElementById('status');
+    el.textContent = text;
+    el.classList.toggle('error', !!isError);
+}
+
+// percent === null means "unknown": the bar slides back and forth instead.
+function setProgress(percent) {
+    var fill = document.getElementById('fill');
+    document.getElementById('progress').hidden = false;
+    fill.classList.toggle('indeterminate', percent === null);
+    fill.style.width = percent === null ? '' : percent + '%';
+}
+
+// Shows what was chosen in an upload box and enables its send button.
+function picked(input) {
+    var box = input.closest('.upload');
+    var hint = box.querySelector('.drop-hint');
+    var files = input.files;
+    var chosen = files && files.length > 0;
+    if (!hint.getAttribute('data-empty')) { hint.setAttribute('data-empty', hint.textContent); }
+    box.classList.toggle('has-file', chosen);
+    box.querySelector('button').disabled = !chosen;
+    if (!chosen) {
+        hint.textContent = hint.getAttribute('data-empty');
+    } else if (input.hasAttribute('webkitdirectory')) {
+        hint.textContent = (files[0].webkitRelativePath || files[0].name).split('/')[0] +
+            ' (' + files.length + ' arquivos)';
+    } else {
+        hint.textContent = files[0].name + ' (' + formatSize(files[0].size) + ')';
+    }
+}
+
+function setBusy(busy) {
+    var buttons = document.querySelectorAll('.upload button');
+    for (var i = 0; i < buttons.length; i++) { buttons[i].disabled = busy; }
+    if (!busy) {
+        picked(document.getElementById('f'));
+        picked(document.getElementById('d'));
+    }
+}
+
+function fail(e) {
+    document.getElementById('progress').hidden = true;
+    setStatus('erro: ' + (e && e.message ? e.message : e), true);
+    setBusy(false);
+}
+
 function up() {
     var f = document.getElementById('f').files[0];
     if (!f) { return; }
-    document.getElementById('status').textContent = 'enviando...';
+    setBusy(true);
+    setProgress(null);
+    setStatus('enviando ' + f.name + '...');
     fetch('/upload/' + encodeURIComponent(f.name), { method: 'POST', body: f })
-        .then(function (r) { return r.text(); })
-        .then(function (t) { document.getElementById('status').textContent = t; location.reload(); })
-        .catch(function (e) { document.getElementById('status').textContent = 'erro: ' + e; });
+        .then(function (r) {
+            if (!r.ok) { throw new Error('falhou ao enviar ' + f.name); }
+            location.reload();
+        })
+        .catch(fail);
 }
 
 function del(btn) {
@@ -24,23 +82,49 @@ function encodePath(relPath) {
 function upDir() {
     var files = document.getElementById('d').files;
     if (!files || files.length === 0) { return; }
+    setBusy(true);
     var i = 0;
     function next() {
         if (i >= files.length) {
-            document.getElementById('status').textContent = 'pasta enviada (' + files.length + ' arquivos)';
+            setProgress(100);
+            setStatus('pasta enviada (' + files.length + ' arquivos)');
             location.reload();
             return;
         }
         var file = files[i];
         var rel = file.webkitRelativePath || file.name;
-        document.getElementById('status').textContent = 'enviando ' + (i + 1) + '/' + files.length + '...';
+        setProgress(i * 100 / files.length);
+        setStatus('enviando ' + (i + 1) + '/' + files.length + '...');
         fetch('/upload/' + encodePath(rel), { method: 'POST', body: file })
             .then(function (r) {
                 if (!r.ok) { throw new Error('falhou em ' + rel); }
                 i++;
                 next();
             })
-            .catch(function (e) { document.getElementById('status').textContent = 'erro: ' + e; });
+            .catch(fail);
     }
     next();
 }
+
+// Dropping a file on the file box works like choosing it. (Folders are not
+// handled: a dropped folder arrives as an entry, not as a list of files.)
+(function () {
+    var input = document.getElementById('f');
+    var drop = input.parentNode;
+    drop.addEventListener('dragover', function (e) {
+        e.preventDefault();
+        drop.classList.add('over');
+    });
+    drop.addEventListener('dragleave', function () { drop.classList.remove('over'); });
+    drop.addEventListener('drop', function (e) {
+        e.preventDefault();
+        drop.classList.remove('over');
+        if (e.dataTransfer.files.length > 0) {
+            input.files = e.dataTransfer.files;
+            picked(input);
+        }
+    });
+    // A reload can leave a chosen file in the input; reflect it in the box.
+    picked(input);
+    picked(document.getElementById('d'));
+})();

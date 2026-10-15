@@ -14,15 +14,27 @@
         {{FILE_LIST}}
     </div>
     <div class="card">
-        <h2>Enviar arquivo</h2>
-        <div class="upload-row">
-            <input type="file" id="f">
-            <button class="btn" onclick="up()">Enviar</button>
+        <h2>Enviar para o SD</h2>
+        <div class="upload">
+            <label class="drop">
+                <input type="file" id="f" class="visually-hidden" onchange="picked(this)">
+                <span class="drop-icon"></span>
+                <span class="drop-title">Escolher arquivo</span>
+                <span class="drop-hint">Toque para escolher ou arraste um arquivo</span>
+            </label>
+            <button class="btn wide" onclick="up()" disabled>Enviar arquivo</button>
         </div>
-        <h2>Enviar pasta</h2>
-        <div class="upload-row">
-            <input type="file" id="d" webkitdirectory multiple>
-            <button class="btn" onclick="upDir()">Enviar pasta</button>
+        <div class="upload">
+            <label class="drop">
+                <input type="file" id="d" class="visually-hidden" webkitdirectory multiple onchange="picked(this)">
+                <span class="drop-icon"></span>
+                <span class="drop-title">Escolher pasta</span>
+                <span class="drop-hint">Toque para escolher uma pasta</span>
+            </label>
+            <button class="btn wide" onclick="upDir()" disabled>Enviar pasta</button>
+        </div>
+        <div class="progress" id="progress" hidden>
+            <div class="progress-fill" id="fill"></div>
         </div>
         <p id="status"></p>
     </div>
