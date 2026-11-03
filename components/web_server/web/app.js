@@ -106,6 +106,51 @@ function upDir() {
     next();
 }
 
+// Sends the chosen .bin to POST /firmware. The board answers before it
+// restarts into the new firmware; waitForRestart() then reloads the page
+// once the board is back, showing the version that is running.
+function upFirmware() {
+    var bin = document.getElementById('fw').files[0];
+    if (!bin) { return; }
+    var button = document.querySelector('.upload button');
+    button.disabled = true;
+    setProgress(null);
+    setStatus('enviando ' + bin.name + '...');
+    fetch('/firmware', { method: 'POST', body: bin })
+        .then(function (r) {
+            return r.text().then(function (text) {
+                if (!r.ok) { throw new Error('falhou (' + r.status + '): ' + text); }
+                setProgress(100);
+                setStatus('Reiniciando...');
+                waitForRestart(30);
+            });
+        })
+        .catch(function (e) {
+            document.getElementById('progress').hidden = true;
+            setStatus('erro: ' + e.message, true);
+            button.disabled = false;
+        });
+}
+
+// Asks for the status page every 2 s and reloads once the board answers;
+// gives up after `tries` attempts.
+function waitForRestart(tries) {
+    setTimeout(function () {
+        fetch('/', { cache: 'no-store' })
+            .then(function (r) {
+                if (!r.ok) { throw new Error('HTTP ' + r.status); }
+                location.reload();
+            })
+            .catch(function () {
+                if (tries > 1) {
+                    waitForRestart(tries - 1);
+                } else {
+                    setStatus('a placa nao voltou; recarregue a pagina', true);
+                }
+            });
+    }, 2000);
+}
+
 // Lowercase and strip accents, so "relatorio" finds "Relatório".
 function plain(text) {
     return text.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
@@ -137,6 +182,7 @@ function filterList(query) {
 // handled: a dropped folder arrives as an entry, not as a list of files.)
 (function () {
     var input = document.getElementById('f');
+    if (!input) { return; } // the status page has only the firmware box
     var drop = input.parentNode;
     drop.addEventListener('dragover', function (e) {
         e.preventDefault();

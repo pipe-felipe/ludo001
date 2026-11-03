@@ -2,6 +2,7 @@
 
 #include <cstdlib>
 #include <cstring>
+#include <span>
 
 namespace oled_display {
 namespace {
@@ -9,8 +10,9 @@ namespace {
 // Stroke font: each glyph is a short list of line segments inside a
 // kGlyphWidth x kGlyphHeight cell (origin top-left), avoiding any copied
 // bitmap font table. Digits reuse a classic 7-segment layout; letters are
-// hand-drawn block strokes. Only the characters this project's status
-// messages need are defined; anything else is skipped by draw_char().
+// hand-drawn block strokes. Covers A-Z, 0-9 and the few symbols the status
+// screen and firmware versions use; anything else is skipped by
+// draw_char().
 struct Segment {
     int8_t x0, y0, x1, y1;
 };
@@ -35,25 +37,94 @@ constexpr Segment kGlyph8[] = {kSegTop, kSegTopLeft, kSegTopRight, kSegMiddle, k
 constexpr Segment kGlyph9[] = {kSegTop, kSegTopLeft, kSegTopRight, kSegMiddle, kSegBottomRight, kSegBottom};
 
 constexpr Segment kGlyphA[] = {{0, 6, 2, 0}, {2, 0, 4, 6}, {1, 3, 3, 3}};
+constexpr Segment kGlyphB[] = {{0, 0, 0, 6}, {0, 0, 3, 0}, {3, 0, 4, 1}, {4, 1, 4, 2}, {4, 2, 3, 3}, {0, 3, 3, 3},
+                                {3, 3, 4, 4}, {4, 4, 4, 5}, {4, 5, 3, 6}, {3, 6, 0, 6}};
 constexpr Segment kGlyphC[] = {{3, 0, 0, 0}, {0, 0, 0, 6}, {0, 6, 3, 6}};
+constexpr Segment kGlyphD[] = {{0, 0, 0, 6}, {0, 0, 2, 0}, {2, 0, 4, 2}, {4, 2, 4, 4}, {4, 4, 2, 6}, {2, 6, 0, 6}};
 constexpr Segment kGlyphE[] = {{0, 0, 0, 6}, {0, 0, 4, 0}, {0, 3, 3, 3}, {0, 6, 4, 6}};
 constexpr Segment kGlyphF[] = {{0, 0, 0, 6}, {0, 0, 4, 0}, {0, 3, 3, 3}};
+constexpr Segment kGlyphG[] = {{4, 0, 0, 0}, {0, 0, 0, 6}, {0, 6, 4, 6}, {4, 6, 4, 3}, {4, 3, 2, 3}};
+constexpr Segment kGlyphH[] = {{0, 0, 0, 6}, {4, 0, 4, 6}, {0, 3, 4, 3}};
 constexpr Segment kGlyphI[] = {{0, 0, 4, 0}, {2, 0, 2, 6}, {0, 6, 4, 6}};
+constexpr Segment kGlyphJ[] = {{4, 0, 4, 6}, {4, 6, 0, 6}, {0, 6, 0, 4}};
+constexpr Segment kGlyphK[] = {{0, 0, 0, 6}, {4, 0, 0, 3}, {0, 3, 4, 6}};
+constexpr Segment kGlyphL[] = {{0, 0, 0, 6}, {0, 6, 4, 6}};
 constexpr Segment kGlyphM[] = {{0, 6, 0, 0}, {0, 0, 2, 3}, {2, 3, 4, 0}, {4, 0, 4, 6}};
 constexpr Segment kGlyphN[] = {{0, 6, 0, 0}, {0, 0, 4, 6}, {4, 6, 4, 0}};
 constexpr Segment kGlyphO[] = {{1, 0, 3, 0}, {3, 0, 4, 1}, {4, 1, 4, 5}, {4, 5, 3, 6},
                                 {3, 6, 1, 6}, {1, 6, 0, 5}, {0, 5, 0, 1}, {0, 1, 1, 0}};
 constexpr Segment kGlyphP[] = {{0, 6, 0, 0}, {0, 0, 3, 0}, {3, 0, 3, 3}, {3, 3, 0, 3}};
+constexpr Segment kGlyphQ[] = {{1, 0, 3, 0}, {3, 0, 4, 1}, {4, 1, 4, 5}, {4, 5, 3, 6},
+                                {3, 6, 1, 6}, {1, 6, 0, 5}, {0, 5, 0, 1}, {0, 1, 1, 0}, {2, 4, 4, 6}};
 constexpr Segment kGlyphR[] = {{0, 6, 0, 0}, {0, 0, 3, 0}, {3, 0, 3, 3}, {3, 3, 0, 3}, {1, 3, 4, 6}};
 constexpr Segment kGlyphS[] = {{4, 0, 0, 0}, {0, 0, 0, 3}, {0, 3, 4, 3}, {4, 3, 4, 6}, {4, 6, 0, 6}};
 constexpr Segment kGlyphT[] = {{0, 0, 4, 0}, {2, 0, 2, 6}};
 constexpr Segment kGlyphU[] = {{0, 0, 0, 6}, {0, 6, 4, 6}, {4, 6, 4, 0}};
+constexpr Segment kGlyphV[] = {{0, 0, 2, 6}, {2, 6, 4, 0}};
 constexpr Segment kGlyphW[] = {{0, 0, 1, 6}, {1, 6, 2, 3}, {2, 3, 3, 6}, {3, 6, 4, 0}};
+constexpr Segment kGlyphX[] = {{0, 0, 4, 6}, {4, 0, 0, 6}};
+constexpr Segment kGlyphY[] = {{0, 0, 2, 3}, {4, 0, 2, 3}, {2, 3, 2, 6}};
+constexpr Segment kGlyphZ[] = {{0, 0, 4, 0}, {4, 0, 0, 6}, {0, 6, 4, 6}};
 
-template <size_t N>
-void select_glyph(const Segment*& segs, size_t& count, const Segment (&arr)[N]) {
-    segs = arr;
-    count = N;
+constexpr Segment kGlyphMinus[] = {kSegMiddle};
+constexpr Segment kGlyphPercent[] = {{0, 6, 4, 0}, {0, 0, 1, 0}, {0, 1, 1, 1}, {3, 5, 4, 5}, {3, 6, 4, 6}};
+
+// The characters draw_char() can draw with a stroke list (it draws '.', '/'
+// and ':' itself), each with the segments that make it up.
+struct Glyph {
+    char c;
+    std::span<const Segment> segments;
+};
+
+constexpr Glyph kGlyphs[] = {
+    {'0', kGlyph0},
+    {'1', kGlyph1},
+    {'2', kGlyph2},
+    {'3', kGlyph3},
+    {'4', kGlyph4},
+    {'5', kGlyph5},
+    {'6', kGlyph6},
+    {'7', kGlyph7},
+    {'8', kGlyph8},
+    {'9', kGlyph9},
+    {'A', kGlyphA},
+    {'B', kGlyphB},
+    {'C', kGlyphC},
+    {'D', kGlyphD},
+    {'E', kGlyphE},
+    {'F', kGlyphF},
+    {'G', kGlyphG},
+    {'H', kGlyphH},
+    {'I', kGlyphI},
+    {'J', kGlyphJ},
+    {'K', kGlyphK},
+    {'L', kGlyphL},
+    {'M', kGlyphM},
+    {'N', kGlyphN},
+    {'O', kGlyphO},
+    {'P', kGlyphP},
+    {'Q', kGlyphQ},
+    {'R', kGlyphR},
+    {'S', kGlyphS},
+    {'T', kGlyphT},
+    {'U', kGlyphU},
+    {'V', kGlyphV},
+    {'W', kGlyphW},
+    {'X', kGlyphX},
+    {'Y', kGlyphY},
+    {'Z', kGlyphZ},
+    {'-', kGlyphMinus},
+    {'%', kGlyphPercent},
+};
+
+// The segments of `c`, or none if the font has no stroke list for it.
+std::span<const Segment> glyph_segments(char c) {
+    for (const Glyph& glyph : kGlyphs) {
+        if (glyph.c == c) {
+            return glyph.segments;
+        }
+    }
+    return {};
 }
 
 } // namespace
@@ -133,34 +204,7 @@ void Framebuffer::draw_char(int x, int y, char c, bool on) {
         c = static_cast<char>(c - ('a' - 'A'));
     }
 
-    const Segment* segs = nullptr;
-    size_t count = 0;
-
     switch (c) {
-        case '0': select_glyph(segs, count, kGlyph0); break;
-        case '1': select_glyph(segs, count, kGlyph1); break;
-        case '2': select_glyph(segs, count, kGlyph2); break;
-        case '3': select_glyph(segs, count, kGlyph3); break;
-        case '4': select_glyph(segs, count, kGlyph4); break;
-        case '5': select_glyph(segs, count, kGlyph5); break;
-        case '6': select_glyph(segs, count, kGlyph6); break;
-        case '7': select_glyph(segs, count, kGlyph7); break;
-        case '8': select_glyph(segs, count, kGlyph8); break;
-        case '9': select_glyph(segs, count, kGlyph9); break;
-        case 'A': select_glyph(segs, count, kGlyphA); break;
-        case 'C': select_glyph(segs, count, kGlyphC); break;
-        case 'E': select_glyph(segs, count, kGlyphE); break;
-        case 'F': select_glyph(segs, count, kGlyphF); break;
-        case 'I': select_glyph(segs, count, kGlyphI); break;
-        case 'M': select_glyph(segs, count, kGlyphM); break;
-        case 'N': select_glyph(segs, count, kGlyphN); break;
-        case 'O': select_glyph(segs, count, kGlyphO); break;
-        case 'P': select_glyph(segs, count, kGlyphP); break;
-        case 'R': select_glyph(segs, count, kGlyphR); break;
-        case 'S': select_glyph(segs, count, kGlyphS); break;
-        case 'T': select_glyph(segs, count, kGlyphT); break;
-        case 'U': select_glyph(segs, count, kGlyphU); break;
-        case 'W': select_glyph(segs, count, kGlyphW); break;
         case '.':
             set_pixel(x + 1, y + kGlyphHeight - 1, on);
             return;
@@ -172,11 +216,12 @@ void Framebuffer::draw_char(int x, int y, char c, bool on) {
             set_pixel(x + 2, y + 5, on);
             return;
         default:
-            return; // space or unsupported character: just advance
+            break;
     }
 
-    for (size_t i = 0; i < count; ++i) {
-        draw_line(x + segs[i].x0, y + segs[i].y0, x + segs[i].x1, y + segs[i].y1, on);
+    // A space or an unsupported character has no segments: just advance.
+    for (const Segment& segment : glyph_segments(c)) {
+        draw_line(x + segment.x0, y + segment.y0, x + segment.x1, y + segment.y1, on);
     }
 }
 

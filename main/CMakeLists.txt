@@ -23,4 +23,4 @@ file(WRITE "${GENERATED_DIR}/wifi_credentials.h"
 
 idf_component_register(SRCS "ludo001.cpp"
                     INCLUDE_DIRS "." "${GENERATED_DIR}"
-                    PRIV_REQUIRES wifi_manager oled_display sd_card web_server)
+                    PRIV_REQUIRES wifi_manager oled_display sd_card web_server app_update esp_app_format esp_timer)

@@ -24,6 +24,9 @@ void test_draw_text_matches_individual_draw_char_calls();
 void test_draw_char_dot();
 void test_draw_char_colon_has_two_dots();
 void test_draw_char_slash_is_diagonal();
+void test_draw_char_every_letter_lights_some_pixels();
+void test_draw_char_minus_is_middle_line();
+void test_draw_char_percent_has_slash_and_two_dots();
 
 // web_server_util
 void test_url_encode_leaves_unreserved_untouched();
@@ -97,6 +100,20 @@ void test_count_entries_of_empty_dir_is_zero();
 void test_count_entries_counts_files_and_folders_at_every_depth();
 void test_count_entries_skips_hidden_folders_and_their_contents();
 
+// web_server_firmware
+void test_firmware_size_fits_up_to_partition_size();
+void test_firmware_size_fits_rejects_empty_image();
+void test_firmware_size_fits_rejects_image_larger_than_partition();
+void test_firmware_reference_head_has_the_layout_the_checks_assume();
+void test_firmware_head_matches_real_image_head();
+void test_firmware_head_matches_own_project();
+void test_firmware_head_matches_rejects_other_project();
+void test_firmware_head_matches_rejects_longer_or_shorter_name();
+void test_firmware_head_matches_name_filling_the_whole_field();
+void test_firmware_head_matches_rejects_bad_image_magic();
+void test_firmware_head_matches_rejects_bad_app_desc_magic();
+void test_firmware_head_matches_rejects_short_head();
+
 extern "C" void app_main(void) {
     UNITY_BEGIN();
 
@@ -119,6 +136,9 @@ extern "C" void app_main(void) {
     RUN_TEST(test_draw_char_dot);
     RUN_TEST(test_draw_char_colon_has_two_dots);
     RUN_TEST(test_draw_char_slash_is_diagonal);
+    RUN_TEST(test_draw_char_every_letter_lights_some_pixels);
+    RUN_TEST(test_draw_char_minus_is_middle_line);
+    RUN_TEST(test_draw_char_percent_has_slash_and_two_dots);
 
     RUN_TEST(test_url_encode_leaves_unreserved_untouched);
     RUN_TEST(test_url_encode_percent_encodes_space);
@@ -187,6 +207,19 @@ extern "C" void app_main(void) {
     RUN_TEST(test_count_entries_of_empty_dir_is_zero);
     RUN_TEST(test_count_entries_counts_files_and_folders_at_every_depth);
     RUN_TEST(test_count_entries_skips_hidden_folders_and_their_contents);
+
+    RUN_TEST(test_firmware_size_fits_up_to_partition_size);
+    RUN_TEST(test_firmware_size_fits_rejects_empty_image);
+    RUN_TEST(test_firmware_size_fits_rejects_image_larger_than_partition);
+    RUN_TEST(test_firmware_reference_head_has_the_layout_the_checks_assume);
+    RUN_TEST(test_firmware_head_matches_real_image_head);
+    RUN_TEST(test_firmware_head_matches_own_project);
+    RUN_TEST(test_firmware_head_matches_rejects_other_project);
+    RUN_TEST(test_firmware_head_matches_rejects_longer_or_shorter_name);
+    RUN_TEST(test_firmware_head_matches_name_filling_the_whole_field);
+    RUN_TEST(test_firmware_head_matches_rejects_bad_image_magic);
+    RUN_TEST(test_firmware_head_matches_rejects_bad_app_desc_magic);
+    RUN_TEST(test_firmware_head_matches_rejects_short_head);
 
     std::exit(UNITY_END());
 }

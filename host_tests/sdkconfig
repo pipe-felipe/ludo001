@@ -74,6 +74,21 @@ CONFIG_APP_BUILD_GENERATE_BINARIES=y
 # CONFIG_APP_NO_BLOBS is not set
 # end of Build type
 
+#
+# Application manager
+#
+# default:
+CONFIG_APP_COMPILE_TIME_DATE=y
+# default:
+# CONFIG_APP_EXCLUDE_PROJECT_VER_VAR is not set
+# default:
+# CONFIG_APP_EXCLUDE_PROJECT_NAME_VAR is not set
+# default:
+# CONFIG_APP_PROJECT_VER_FROM_CONFIG is not set
+# default:
+CONFIG_APP_RETRIEVE_LEN_ELF_SHA=9
+# end of Application manager
+
 # default:
 CONFIG_ESP_ROM_USB_OTG_NUM=-1
 # default:

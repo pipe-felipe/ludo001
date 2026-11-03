@@ -1,0 +1,8 @@
+# Settings this project depends on, applied to sdkconfig by `idf.py reconfigure`:
+# 4 MB flash with two 1700K OTA app partitions, app rollback, and OTA
+# images that must be signed with secure_boot_signing_key.pem (no Secure
+# Boot, no eFuses burned).
+CONFIG_ESPTOOLPY_FLASHSIZE_4MB=y
+CONFIG_PARTITION_TABLE_TWO_OTA_LARGE=y
+CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE=y
+CONFIG_SECURE_SIGNED_APPS_NO_SECURE_BOOT=y

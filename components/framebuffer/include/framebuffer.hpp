@@ -27,9 +27,9 @@ public:
     void draw_line(int x0, int y0, int x1, int y1, bool on = true);
 
     // Stroke-font text. Supports 'A'-'Z'/'a'-'z' (rendered as uppercase),
-    // '0'-'9', ' ', '.', '/' and ':'; unsupported characters are skipped
-    // (cursor still advances). Each glyph is kGlyphWidth x kGlyphHeight,
-    // advancing by kGlyphAdvance per character.
+    // '0'-'9', ' ', '.', '/', ':', '-' and '%'; unsupported characters are
+    // skipped (cursor still advances). Each glyph is kGlyphWidth x
+    // kGlyphHeight, advancing by kGlyphAdvance per character.
     static constexpr int kGlyphWidth = 5;
     static constexpr int kGlyphHeight = 7;
     static constexpr int kGlyphAdvance = 6;

@@ -7,3 +7,4 @@ managed_components/
 *.elf
 *.bin
 .env
+secure_boot_signing_key.pem
