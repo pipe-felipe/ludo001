@@ -24,6 +24,9 @@ void test_draw_text_matches_individual_draw_char_calls();
 void test_draw_char_dot();
 void test_draw_char_colon_has_two_dots();
 void test_draw_char_slash_is_diagonal();
+void test_draw_char_every_letter_lights_some_pixels();
+void test_draw_char_minus_is_middle_line();
+void test_draw_char_percent_has_slash_and_two_dots();
 
 // web_server_util
 void test_url_encode_leaves_unreserved_untouched();
@@ -130,6 +133,9 @@ extern "C" void app_main(void) {
     RUN_TEST(test_draw_char_dot);
     RUN_TEST(test_draw_char_colon_has_two_dots);
     RUN_TEST(test_draw_char_slash_is_diagonal);
+    RUN_TEST(test_draw_char_every_letter_lights_some_pixels);
+    RUN_TEST(test_draw_char_minus_is_middle_line);
+    RUN_TEST(test_draw_char_percent_has_slash_and_two_dots);
 
     RUN_TEST(test_url_encode_leaves_unreserved_untouched);
     RUN_TEST(test_url_encode_percent_encodes_space);

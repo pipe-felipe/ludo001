@@ -9,8 +9,9 @@ namespace {
 // Stroke font: each glyph is a short list of line segments inside a
 // kGlyphWidth x kGlyphHeight cell (origin top-left), avoiding any copied
 // bitmap font table. Digits reuse a classic 7-segment layout; letters are
-// hand-drawn block strokes. Only the characters this project's status
-// messages need are defined; anything else is skipped by draw_char().
+// hand-drawn block strokes. Covers A-Z, 0-9 and the few symbols the status
+// screen and firmware versions use; anything else is skipped by
+// draw_char().
 struct Segment {
     int8_t x0, y0, x1, y1;
 };
@@ -35,20 +36,37 @@ constexpr Segment kGlyph8[] = {kSegTop, kSegTopLeft, kSegTopRight, kSegMiddle, k
 constexpr Segment kGlyph9[] = {kSegTop, kSegTopLeft, kSegTopRight, kSegMiddle, kSegBottomRight, kSegBottom};
 
 constexpr Segment kGlyphA[] = {{0, 6, 2, 0}, {2, 0, 4, 6}, {1, 3, 3, 3}};
+constexpr Segment kGlyphB[] = {{0, 0, 0, 6}, {0, 0, 3, 0}, {3, 0, 4, 1}, {4, 1, 4, 2}, {4, 2, 3, 3}, {0, 3, 3, 3},
+                                {3, 3, 4, 4}, {4, 4, 4, 5}, {4, 5, 3, 6}, {3, 6, 0, 6}};
 constexpr Segment kGlyphC[] = {{3, 0, 0, 0}, {0, 0, 0, 6}, {0, 6, 3, 6}};
+constexpr Segment kGlyphD[] = {{0, 0, 0, 6}, {0, 0, 2, 0}, {2, 0, 4, 2}, {4, 2, 4, 4}, {4, 4, 2, 6}, {2, 6, 0, 6}};
 constexpr Segment kGlyphE[] = {{0, 0, 0, 6}, {0, 0, 4, 0}, {0, 3, 3, 3}, {0, 6, 4, 6}};
 constexpr Segment kGlyphF[] = {{0, 0, 0, 6}, {0, 0, 4, 0}, {0, 3, 3, 3}};
+constexpr Segment kGlyphG[] = {{4, 0, 0, 0}, {0, 0, 0, 6}, {0, 6, 4, 6}, {4, 6, 4, 3}, {4, 3, 2, 3}};
+constexpr Segment kGlyphH[] = {{0, 0, 0, 6}, {4, 0, 4, 6}, {0, 3, 4, 3}};
 constexpr Segment kGlyphI[] = {{0, 0, 4, 0}, {2, 0, 2, 6}, {0, 6, 4, 6}};
+constexpr Segment kGlyphJ[] = {{4, 0, 4, 6}, {4, 6, 0, 6}, {0, 6, 0, 4}};
+constexpr Segment kGlyphK[] = {{0, 0, 0, 6}, {4, 0, 0, 3}, {0, 3, 4, 6}};
+constexpr Segment kGlyphL[] = {{0, 0, 0, 6}, {0, 6, 4, 6}};
 constexpr Segment kGlyphM[] = {{0, 6, 0, 0}, {0, 0, 2, 3}, {2, 3, 4, 0}, {4, 0, 4, 6}};
 constexpr Segment kGlyphN[] = {{0, 6, 0, 0}, {0, 0, 4, 6}, {4, 6, 4, 0}};
 constexpr Segment kGlyphO[] = {{1, 0, 3, 0}, {3, 0, 4, 1}, {4, 1, 4, 5}, {4, 5, 3, 6},
                                 {3, 6, 1, 6}, {1, 6, 0, 5}, {0, 5, 0, 1}, {0, 1, 1, 0}};
 constexpr Segment kGlyphP[] = {{0, 6, 0, 0}, {0, 0, 3, 0}, {3, 0, 3, 3}, {3, 3, 0, 3}};
+constexpr Segment kGlyphQ[] = {{1, 0, 3, 0}, {3, 0, 4, 1}, {4, 1, 4, 5}, {4, 5, 3, 6},
+                                {3, 6, 1, 6}, {1, 6, 0, 5}, {0, 5, 0, 1}, {0, 1, 1, 0}, {2, 4, 4, 6}};
 constexpr Segment kGlyphR[] = {{0, 6, 0, 0}, {0, 0, 3, 0}, {3, 0, 3, 3}, {3, 3, 0, 3}, {1, 3, 4, 6}};
 constexpr Segment kGlyphS[] = {{4, 0, 0, 0}, {0, 0, 0, 3}, {0, 3, 4, 3}, {4, 3, 4, 6}, {4, 6, 0, 6}};
 constexpr Segment kGlyphT[] = {{0, 0, 4, 0}, {2, 0, 2, 6}};
 constexpr Segment kGlyphU[] = {{0, 0, 0, 6}, {0, 6, 4, 6}, {4, 6, 4, 0}};
+constexpr Segment kGlyphV[] = {{0, 0, 2, 6}, {2, 6, 4, 0}};
 constexpr Segment kGlyphW[] = {{0, 0, 1, 6}, {1, 6, 2, 3}, {2, 3, 3, 6}, {3, 6, 4, 0}};
+constexpr Segment kGlyphX[] = {{0, 0, 4, 6}, {4, 0, 0, 6}};
+constexpr Segment kGlyphY[] = {{0, 0, 2, 3}, {4, 0, 2, 3}, {2, 3, 2, 6}};
+constexpr Segment kGlyphZ[] = {{0, 0, 4, 0}, {4, 0, 0, 6}, {0, 6, 4, 6}};
+
+constexpr Segment kGlyphMinus[] = {kSegMiddle};
+constexpr Segment kGlyphPercent[] = {{0, 6, 4, 0}, {0, 0, 1, 0}, {0, 1, 1, 1}, {3, 5, 4, 5}, {3, 6, 4, 6}};
 
 template <size_t N>
 void select_glyph(const Segment*& segs, size_t& count, const Segment (&arr)[N]) {
@@ -148,19 +166,33 @@ void Framebuffer::draw_char(int x, int y, char c, bool on) {
         case '8': select_glyph(segs, count, kGlyph8); break;
         case '9': select_glyph(segs, count, kGlyph9); break;
         case 'A': select_glyph(segs, count, kGlyphA); break;
+        case 'B': select_glyph(segs, count, kGlyphB); break;
         case 'C': select_glyph(segs, count, kGlyphC); break;
+        case 'D': select_glyph(segs, count, kGlyphD); break;
         case 'E': select_glyph(segs, count, kGlyphE); break;
         case 'F': select_glyph(segs, count, kGlyphF); break;
+        case 'G': select_glyph(segs, count, kGlyphG); break;
+        case 'H': select_glyph(segs, count, kGlyphH); break;
         case 'I': select_glyph(segs, count, kGlyphI); break;
+        case 'J': select_glyph(segs, count, kGlyphJ); break;
+        case 'K': select_glyph(segs, count, kGlyphK); break;
+        case 'L': select_glyph(segs, count, kGlyphL); break;
         case 'M': select_glyph(segs, count, kGlyphM); break;
         case 'N': select_glyph(segs, count, kGlyphN); break;
         case 'O': select_glyph(segs, count, kGlyphO); break;
         case 'P': select_glyph(segs, count, kGlyphP); break;
+        case 'Q': select_glyph(segs, count, kGlyphQ); break;
         case 'R': select_glyph(segs, count, kGlyphR); break;
         case 'S': select_glyph(segs, count, kGlyphS); break;
         case 'T': select_glyph(segs, count, kGlyphT); break;
         case 'U': select_glyph(segs, count, kGlyphU); break;
+        case 'V': select_glyph(segs, count, kGlyphV); break;
         case 'W': select_glyph(segs, count, kGlyphW); break;
+        case 'X': select_glyph(segs, count, kGlyphX); break;
+        case 'Y': select_glyph(segs, count, kGlyphY); break;
+        case 'Z': select_glyph(segs, count, kGlyphZ); break;
+        case '-': select_glyph(segs, count, kGlyphMinus); break;
+        case '%': select_glyph(segs, count, kGlyphPercent); break;
         case '.':
             set_pixel(x + 1, y + kGlyphHeight - 1, on);
             return;

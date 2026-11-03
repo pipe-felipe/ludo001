@@ -183,3 +183,28 @@ void test_draw_char_slash_is_diagonal() {
     TEST_ASSERT_TRUE(fb.get_pixel(0, Framebuffer::kGlyphHeight - 1));
     TEST_ASSERT_TRUE(fb.get_pixel(Framebuffer::kGlyphWidth - 1, 0));
 }
+
+void test_draw_char_every_letter_lights_some_pixels() {
+    for (char c = 'A'; c <= 'Z'; ++c) {
+        Framebuffer fb;
+        fb.draw_char(0, 0, c);
+        const char letter[] = {c, '\0'};
+        TEST_ASSERT_FALSE_MESSAGE(all_bytes_zero(fb), letter);
+    }
+}
+
+void test_draw_char_minus_is_middle_line() {
+    Framebuffer fb;
+    fb.draw_char(0, 0, '-');
+    TEST_ASSERT_TRUE(fb.get_pixel(0, 3));
+    TEST_ASSERT_TRUE(fb.get_pixel(Framebuffer::kGlyphWidth - 1, 3));
+    TEST_ASSERT_FALSE(fb.get_pixel(2, 0));
+}
+
+void test_draw_char_percent_has_slash_and_two_dots() {
+    Framebuffer fb;
+    fb.draw_char(0, 0, '%');
+    TEST_ASSERT_TRUE(fb.get_pixel(2, 3)); // middle of the slash
+    TEST_ASSERT_TRUE(fb.get_pixel(0, 0)); // top-left dot
+    TEST_ASSERT_TRUE(fb.get_pixel(Framebuffer::kGlyphWidth - 1, Framebuffer::kGlyphHeight - 1)); // bottom-right dot
+}
