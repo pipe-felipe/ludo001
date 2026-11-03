@@ -95,9 +95,7 @@ esp_err_t root_handler(httpd_req_t* req) {
 // The decoded <path> of a request to `route` + <path>: "a/b.txt" for
 // "/files/a/b.txt" with route "/files/".
 std::string request_path(httpd_req_t* req, const char* route) {
-    char decoded[256];
-    url_decode(req->uri + strlen(route), decoded, sizeof(decoded));
-    return decoded;
+    return url_decode(req->uri + strlen(route));
 }
 
 // SD card path of `relative_path`, which has no leading slash ("" is the
@@ -124,9 +122,7 @@ std::vector<FileEntry> list_entries(const std::string& full_dir) {
             if (stat((full_dir + "/" + child.name).c_str(), &st) != 0) {
                 continue;
             }
-            char size_text[24];
-            format_size(static_cast<long>(st.st_size), size_text, sizeof(size_text));
-            fe.size_text = size_text;
+            fe.size_text = format_size(static_cast<long>(st.st_size));
         }
         entries.push_back(std::move(fe));
     }
@@ -208,7 +204,7 @@ esp_err_t files_item_handler(httpd_req_t* req) {
     if (name.empty()) {
         return render_directory(req, ""); // "/files/" with nothing after it
     }
-    if (!is_safe_filename(name.c_str())) {
+    if (!is_safe_filename(name)) {
         httpd_resp_send_404(req);
         return ESP_FAIL;
     }
@@ -294,7 +290,7 @@ const char* store_body(httpd_req_t* req, const std::string& path) {
 // exists on the card gets a number prefix instead of being overwritten.
 esp_err_t upload_handler(httpd_req_t* req) {
     std::string name = request_path(req, "/upload/");
-    if (!sd_card::is_mounted() || !is_safe_filename(name.c_str())) {
+    if (!sd_card::is_mounted() || !is_safe_filename(name)) {
         httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "invalid file name or no SD card");
         return ESP_FAIL;
     }
@@ -335,7 +331,7 @@ bool remove_recursive(const std::string& path) {
 // from the SD card.
 esp_err_t delete_handler(httpd_req_t* req) {
     std::string name = request_path(req, "/delete/");
-    if (!sd_card::is_mounted() || !is_safe_filename(name.c_str())) {
+    if (!sd_card::is_mounted() || !is_safe_filename(name)) {
         httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "invalid file name or no SD card");
         return ESP_FAIL;
     }
@@ -471,7 +467,7 @@ esp_err_t zip_handler(httpd_req_t* req) {
         name.pop_back();
     }
 
-    if (!sd_card::is_mounted() || !is_safe_filename(name.c_str())) {
+    if (!sd_card::is_mounted() || !is_safe_filename(name)) {
         httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "invalid folder name or no SD card");
         return ESP_FAIL;
     }

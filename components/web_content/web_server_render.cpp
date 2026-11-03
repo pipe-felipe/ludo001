@@ -52,11 +52,10 @@ std::string render_file_list(const std::vector<FileEntry>& entries, const std::s
     }
 
     out += "<ul>";
-    char encoded_name[200];
     char item[1800];
     for (const FileEntry& entry : entries) {
-        url_encode(entry.name.c_str(), encoded_name, sizeof(encoded_name));
-        std::string rel_path = current_dir.empty() ? std::string(encoded_name) : current_dir + "/" + encoded_name;
+        std::string encoded_name = url_encode(entry.name);
+        std::string rel_path = current_dir.empty() ? encoded_name : current_dir + "/" + encoded_name;
 
         if (entry.is_dir) {
             snprintf(item, sizeof(item),
