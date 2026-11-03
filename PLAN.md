@@ -304,7 +304,7 @@ path of its file. Searching for it must land on the block.
 | 3 | Complete the OLED font with every letter, '-' and '%' | `PLAN/03-oled-font.md` | DONE |
 | 4 | Add POST /firmware to web_server | `PLAN/04-firmware-route.md` | DONE |
 | 5 | Confirm a new firmware after Wi-Fi and HTTP come up, and show it on the OLED | `PLAN/05-boot-check-and-oled.md` | DONE |
-| 6 | Add the Firmware card to the status page | `PLAN/06-status-page.md` | TODO |
+| 6 | Add the Firmware card to the status page | `PLAN/06-status-page.md` | DONE |
 | 7 | Flash once over USB and test OTA on the board | `PLAN/07-board-tests.md` | TODO |
 | 8 | Document firmware updates in the READMEs | `PLAN/08-docs.md` | TODO |
 | 9 | Verify everything and remove the plan | `PLAN/09-cleanup.md` | TODO |

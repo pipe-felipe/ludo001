@@ -15,6 +15,24 @@
         <p>SD card: {{SD_LINE}}</p>
         <p><a class="btn" href="/files">Ver arquivos</a></p>
     </div>
+    <div class="card">
+        <h2>Firmware</h2>
+        <p>Versao: {{FW_VERSION}}</p>
+        <div class="upload">
+            <label class="drop">
+                <input type="file" id="fw" class="visually-hidden" accept=".bin" onchange="picked(this)">
+                <span class="drop-icon"></span>
+                <span class="drop-title">Escolher firmware</span>
+                <span class="drop-hint">Toque para escolher o ludo001.bin assinado</span>
+            </label>
+            <button class="btn wide" onclick="upFirmware()" disabled>Atualizar firmware</button>
+        </div>
+        <div class="progress" id="progress" hidden>
+            <div class="progress-fill" id="fill"></div>
+        </div>
+        <p id="status"></p>
+    </div>
+    <script src="/app.js"></script>
 </body>
 
 </html>

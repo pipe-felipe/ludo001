@@ -99,6 +99,7 @@ esp_err_t root_handler(httpd_req_t* req) {
         {
             {"WIFI_LINE", render_wifi_line(wifi_connected, ip)},
             {"SD_LINE", render_sd_line(sd_mounted, sd_card::capacity_mb())},
+            {"FW_VERSION", esp_app_get_description()->version},
         });
 
     return send_text(req, "text/html", body);
