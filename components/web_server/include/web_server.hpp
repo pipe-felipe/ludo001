@@ -21,11 +21,12 @@ bool is_running();
 struct UploadProgress {
     bool active = false;
     uint8_t percent = 0;
+    bool firmware = false; // a firmware update (POST /firmware), not a file upload
 };
 
-// Snapshot of the in-progress upload (if any), so other tasks -- e.g. the
-// OLED display loop -- can show a progress bar without touching httpd
-// internals.
+// Snapshot of the upload or firmware update in progress (if any), so other
+// tasks -- e.g. the OLED display loop -- can show a progress bar without
+// touching httpd internals.
 UploadProgress upload_progress();
 
 // Goes up by one after every upload or delete, so other tasks -- e.g. the
