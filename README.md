@@ -46,9 +46,9 @@ Ligue na tomada (ou numa power bank), abra `http://ludo001.local` no celular ou 
 - **Buscar** pelo nome na pasta aberta, sem diferenciar maiúsculas nem acentos (`relatorio` acha `Relatório Final.pdf`).
 - **Mobile first**: a lista quebra em duas linhas no celular para o nome aparecer inteiro, e os alvos de toque são grandes.
 - **Lista com rolagem** a partir de 13 itens, para a página não crescer sem fim.
-- **Tela OLED** opcional com IP, progresso de envio, quantidade de itens e espaço usado.
+- **Tela OLED** opcional com IP, progresso de envio, quantidade de itens no cartão (arquivos e pastas, contando as subpastas) e espaço usado.
 - **Endereço fácil**: o ESP32 se anuncia por mDNS como `ludo001.local`.
-- **Código testável**: toda a lógica sem hardware (URLs, HTML, formato ZIP, desenho no display) roda e é testada no seu PC, sem placa.
+- **Código testável**: toda a lógica sem hardware (URLs, HTML, formato ZIP, desenho no display, contagem de itens) roda e é testada no seu PC, sem placa.
 
 ## O que você precisa
 
@@ -168,10 +168,12 @@ Com o display ligado, a tela mostra, atualizada a cada 0,4 s:
 │ IP 192.168.0.42          │  ← faixa de cima: IP, ou "SEM WIFI"
 ├──────────────────────────┤
 │ [██████░░░░░░░░░░░░░░░░] │  ← progresso do envio em andamento
-│ ITENS 12                 │  ← itens na raiz do cartão
+│ ITENS 12                 │  ← arquivos + pastas no cartão todo
 │ USO 123/14500MB          │  ← espaço usado / livre
 └──────────────────────────┘
 ```
+
+**ITENS** conta os arquivos e as pastas do cartão inteiro, descendo em todas as subpastas; nomes que começam com `.` ficam de fora, junto com tudo que estiver dentro de uma pasta assim (como na lista da web). Percorrer o cartão pelo SPI é lento, então a contagem e o espaço usado/livre são lidos ao ligar e depois de cada envio ou exclusão, não a cada 0,4 s. Cada leitura aparece no log como `sd card: 12 items, 123 MB used, 14500 MB free`.
 
 O progresso na tela cobre **envios**; o download de arquivos e de `.zip` não aparece no OLED.
 
@@ -211,7 +213,7 @@ Códigos de resposta que valem saber:
 | `400` | Nome inválido (vazio, começando com `/`, ou contendo `..`), cartão não montado, ou `/zip/` sem pasta (raiz) |
 | `404` | Arquivo ou pasta inexistente; `/zip/` apontando para um arquivo, não uma pasta |
 | `413` | A pasta pediu um `.zip` maior que 4 GiB ou com mais de 65535 itens |
-| `500` | Falha ao abrir o arquivo para escrita, ou envio interrompido (o arquivo parcial é removido) |
+| `500` | Falha ao abrir ou gravar o arquivo (por exemplo, cartão cheio), ou envio interrompido (o arquivo parcial é removido) |
 
 O `.zip` usa entradas sem compressão (*stored*) e data fixa `1980-01-01 00:00` (a placa não tem relógio). Arquivos que começam com `.` não entram.
 
@@ -222,6 +224,7 @@ main/ludo001.cpp          app_main: liga OLED, Wi-Fi, cartão e servidor; laço 
 components/
 ├── wifi_manager/         Wi-Fi em modo estação (conecta e reconecta sozinho)
 ├── sd_card/              microSD por SPI, montado como FAT em /sdcard
+├── dir_scan/             lista e conta o que há nas pastas (POSIX opendir/readdir) — lógica pura
 ├── oled_display/         transporte I2C do SSD1306
 ├── framebuffer/          desenho de pixels, linhas e texto (fonte de traços) — lógica pura
 ├── web_server/           servidor esp_http_server + web/ (index.html, files.html, style.css, app.js)
@@ -231,7 +234,7 @@ host_tests/               projeto separado: testes Unity que rodam no PC (target
 
 Decisões que moldam o código:
 
-- **Separação entre lógica pura e hardware.** Tudo que não precisa de `esp_*` (codificação de URL, montagem da lista, registros do ZIP, desenho no display) fica em `web_content` e `framebuffer`, sem dependências do ESP-IDF — por isso compila para o PC e é testado lá. O que toca hardware (`httpd`, SPI, I2C) fica em adaptadores finos.
+- **Separação entre lógica pura e hardware.** Tudo que não precisa de `esp_*` (codificação de URL, montagem da lista, registros do ZIP, desenho no display, leitura de pastas) fica em `web_content`, `framebuffer` e `dir_scan`, sem dependências do ESP-IDF — por isso compila para o PC e é testado lá. O que toca hardware (`httpd`, SPI, I2C) fica em adaptadores finos.
 - **A interface é feita de arquivos de verdade.** HTML, CSS e JavaScript vivem em `components/web_server/web/` e são embutidos no firmware na compilação (`EMBED_TXTFILES`); não há páginas escritas dentro de strings em C++. Só fragmentos dinâmicos pequenos (a lista de itens, as etiquetas de status) são montados em C++ e encaixados nos modelos `{{TOKEN}}`.
 - **ZIP em streaming.** Cada arquivo é lido em blocos de 1 KB, o CRC-32 é calculado no caminho e gravado num *data descriptor* depois dos dados; o diretório central é enviado no fim. O consumo de memória não depende do tamanho dos arquivos, só do número de itens: a lista de nomes da pasta fica na RAM durante o download.
 - **Busca no navegador.** A pasta aberta já está inteira na página, então o filtro roda no JavaScript do cliente, sem pedir nada ao ESP32.

@@ -257,7 +257,7 @@ path of its file. Searching for it must land on the block.
 | 4 | Return std::string from url_encode, url_decode and format_size | `PLAN/04-util-strings.md` | DONE |
 | 5 | Build the file list rows without fixed buffers | `PLAN/05-render-file-list.md` | DONE |
 | 6 | Count every file and folder on the OLED, only after a change | `PLAN/06-oled-count.md` | DONE |
-| 7 | Document the new item count and dir_scan | `PLAN/07-docs.md` | TODO |
+| 7 | Document the new item count and dir_scan | `PLAN/07-docs.md` | DONE |
 | 8 | Verify everything and remove the plan | `PLAN/08-cleanup.md` | TODO |
 
 Statuses: `TODO` → `DONE`, or `BLOCKED` (see §11 R12).
