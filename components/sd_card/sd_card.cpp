@@ -1,8 +1,8 @@
 #include "sd_card.hpp"
 
 #include <cstring>
-#include <dirent.h>
 
+#include "dir_scan.hpp"
 #include "driver/sdspi_host.h"
 #include "esp_log.h"
 #include "esp_vfs_fat.h"
@@ -91,38 +91,20 @@ const char* mount_point() {
     return s_mounted ? s_mount_point : "";
 }
 
-uint32_t file_count() {
-    if (!s_mounted) {
-        return 0;
-    }
-    DIR* dir = opendir(s_mount_point);
-    if (dir == nullptr) {
-        return 0;
-    }
-    uint32_t count = 0;
-    struct dirent* entry;
-    while ((entry = readdir(dir)) != nullptr) {
-        if (entry->d_name[0] != '.') {
-            ++count;
-        }
-    }
-    closedir(dir);
-    return count;
+uint32_t item_count() {
+    return s_mounted ? dir_scan::count_entries(s_mount_point) : 0;
 }
 
-esp_err_t space_info(uint64_t* used_mb, uint64_t* free_mb) {
-    if (!s_mounted) {
-        return ESP_ERR_INVALID_STATE;
-    }
+SpaceInfo space_info() {
+    SpaceInfo info;
     uint64_t total_bytes = 0;
     uint64_t free_bytes = 0;
-    esp_err_t err = esp_vfs_fat_info(s_mount_point, &total_bytes, &free_bytes);
-    if (err != ESP_OK) {
-        return err;
+    if (!s_mounted || esp_vfs_fat_info(s_mount_point, &total_bytes, &free_bytes) != ESP_OK) {
+        return info;
     }
-    *used_mb = (total_bytes - free_bytes) / (1024 * 1024);
-    *free_mb = free_bytes / (1024 * 1024);
-    return ESP_OK;
+    info.used_mb = (total_bytes - free_bytes) / (1024 * 1024);
+    info.free_mb = free_bytes / (1024 * 1024);
+    return info;
 }
 
 } // namespace sd_card

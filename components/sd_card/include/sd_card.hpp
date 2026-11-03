@@ -36,12 +36,19 @@ uint64_t capacity_mb();
 // VFS mount point in use (e.g. "/sdcard"), or "" if not mounted.
 const char* mount_point();
 
-// Number of regular entries at the mount point's root (dotfiles
-// excluded), or 0 if not mounted.
-uint32_t file_count();
+// Number of files and folders on the card, at any depth (names starting
+// with '.' excluded, and hidden folders not entered), or 0 if not mounted.
+// Walks the whole card over SPI, so call it only when the content may have
+// changed.
+uint32_t item_count();
 
-// Used/free space on the mounted filesystem, in megabytes.
-// ESP_ERR_INVALID_STATE if not mounted.
-esp_err_t space_info(uint64_t* used_mb, uint64_t* free_mb);
+struct SpaceInfo {
+    uint64_t used_mb = 0;
+    uint64_t free_mb = 0;
+};
+
+// Used/free space on the mounted filesystem, in megabytes; both 0 if not
+// mounted or if the filesystem can't be queried.
+SpaceInfo space_info();
 
 } // namespace sd_card
