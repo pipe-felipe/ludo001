@@ -258,7 +258,7 @@ path of its file. Searching for it must land on the block.
 | 5 | Build the file list rows without fixed buffers | `PLAN/05-render-file-list.md` | DONE |
 | 6 | Count every file and folder on the OLED, only after a change | `PLAN/06-oled-count.md` | DONE |
 | 7 | Document the new item count and dir_scan | `PLAN/07-docs.md` | DONE |
-| 8 | Verify everything and remove the plan | `PLAN/08-cleanup.md` | TODO |
+| 8 | Verify everything and remove the plan | `PLAN/08-cleanup.md` | BLOCKED |
 
 Statuses: `TODO` → `DONE`, or `BLOCKED` (see §11 R12).
 
@@ -275,3 +275,27 @@ Statuses: `TODO` → `DONE`, or `BLOCKED` (see §11 R12).
 
 ## Blocked
 
+### Block 8 — step 5 (serial size limit); step 2 (flash count differs)
+
+Steps 1-4 of BLOCK 8 passed: 83 tests, firmware 0x6fc0 bytes free, HTTP `200`, `plan_count_test/` answered `404`. Nothing has been written to the card.
+
+Step 5 command and exact output. The stop condition is "`build/plan-serial.log` is larger than 100000 bytes":
+
+```
+stty -F /dev/ttyUSB0 115200 raw -echo -hupcl
+(timeout 4 cat /dev/ttyUSB0 | tr -d '\000' > build/plan-serial.log) &
+sleep 1
+curl -s -m 5 -o /dev/null -w '%{http_code}\n' -X POST http://ludo001.local/delete/plan_count_test/missing.txt
+wait
+grep -a -oE 'sd card: [0-9]+ items' build/plan-serial.log | tail -1; wc -c build/plan-serial.log
+```
+
+```
+404
+sd card: 0 items
+400673 build/plan-serial.log
+```
+
+The log has 7 lines and one `sd card:` line. The rest is the repeating `xx` noise that `~/.claude/skills/embedded/SKILL.md` describes as bogus data from long serial reads on this machine.
+
+Step 2 (flash): `exit=0`, but `grep -cE 'Hash of data verified' build/plan-flash.log` printed `1`, the plan expects `3` or more. The esptool in ESP-IDF v6.1 prints `'bootloader/bootloader.bin' at 0x00001000 verified.` and `'partition_table/partition-table.bin' at 0x00008000 verified.` for the two unchanged images and `Hash of data verified.` once for the app. The board then answered HTTP `200`.
