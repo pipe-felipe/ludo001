@@ -1,17 +1,19 @@
 # host_tests
 
 Unit tests for the parts of this project with no hardware/network
-dependency: `framebuffer` (OLED pixel/text drawing) and `web_content`
+dependency: `framebuffer` (OLED pixel/text drawing), `web_content`
 (the web server's string-building logic -- URL encode/decode, filename
-safety, file-size formatting, HTML fragment rendering). They build as a
-native executable via ESP-IDF's `linux` target and run directly on this
-machine, no board or flashing involved.
+safety, file-size formatting, HTML fragment rendering) and `dir_scan`
+(listing and counting directory entries, tested against a scratch
+directory under the system temp dir). They build as a native executable
+via ESP-IDF's `linux` target and run directly on this machine, no board
+or flashing involved.
 
 This is a separate `idf.py` project (its own `CMakeLists.txt`/`main`/
 `sdkconfig`), not a subdirectory of the ESP32 app -- that keeps
 `web_server`'s `espressif/mdns` dependency (which doesn't support the
 `linux` target) out of this build entirely; `EXTRA_COMPONENT_DIRS` only
-points at `framebuffer` and `web_content`, not the whole `components/`
+points at `framebuffer`, `web_content` and `dir_scan`, not the whole `components/`
 directory.
 
 ## One-time setup

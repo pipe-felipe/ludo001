@@ -1,7 +1,6 @@
 #include "web_server_util.hpp"
 
 #include <cstdio>
-#include <cstring>
 
 namespace web_server {
 namespace {
@@ -15,41 +14,44 @@ int hex_value(char c) {
 
 } // namespace
 
-void url_decode(const char* in, char* out, size_t out_size) {
-    size_t o = 0;
-    for (size_t i = 0; in[i] != '\0' && o + 1 < out_size; ++i) {
-        int hi = (in[i] == '%') ? hex_value(in[i + 1]) : -1;
+std::string url_decode(std::string_view in) {
+    std::string out;
+    out.reserve(in.size());
+    for (size_t i = 0; i < in.size(); ++i) {
+        int hi = (in[i] == '%' && i + 2 < in.size()) ? hex_value(in[i + 1]) : -1;
         int lo = (hi >= 0) ? hex_value(in[i + 2]) : -1;
         if (hi >= 0 && lo >= 0) {
-            out[o++] = static_cast<char>((hi << 4) | lo);
+            out += static_cast<char>((hi << 4) | lo);
             i += 2;
         } else {
-            out[o++] = in[i];
+            out += in[i];
         }
     }
-    out[o] = '\0';
+    return out;
 }
 
-void url_encode(const char* in, char* out, size_t out_size) {
+std::string url_encode(std::string_view in) {
     constexpr char kHex[] = "0123456789ABCDEF";
-    size_t o = 0;
-    for (size_t i = 0; in[i] != '\0' && o + 4 < out_size; ++i) {
-        unsigned char c = static_cast<unsigned char>(in[i]);
+    std::string out;
+    out.reserve(in.size());
+    for (char ch : in) {
+        unsigned char c = static_cast<unsigned char>(ch);
         bool unreserved = (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') ||
                            (c >= '0' && c <= '9') || c == '-' || c == '_' || c == '.' || c == '~';
         if (unreserved) {
-            out[o++] = static_cast<char>(c);
+            out += ch;
         } else {
-            out[o++] = '%';
-            out[o++] = kHex[c >> 4];
-            out[o++] = kHex[c & 0xF];
+            out += '%';
+            out += kHex[c >> 4];
+            out += kHex[c & 0xF];
         }
     }
-    out[o] = '\0';
+    return out;
 }
 
-bool is_safe_filename(const char* name) {
-    return name[0] != '\0' && name[0] != '/' && std::strstr(name, "..") == nullptr;
+bool is_safe_filename(std::string_view name) {
+    return !name.empty() && name[0] != '/' && name.find("..") == std::string_view::npos &&
+           name.find('\0') == std::string_view::npos;
 }
 
 std::string numbered_name(const std::string& path, unsigned n) {
@@ -57,14 +59,16 @@ std::string numbered_name(const std::string& path, unsigned n) {
     return path.substr(0, name_start) + std::to_string(n) + "-" + path.substr(name_start);
 }
 
-void format_size(long size, char* out, size_t out_size) {
+std::string format_size(long size) {
+    char out[24];
     if (size < 1024) {
-        snprintf(out, out_size, "%ld B", size);
+        snprintf(out, sizeof(out), "%ld B", size);
     } else if (size < 1024 * 1024) {
-        snprintf(out, out_size, "%.1f KB", size / 1024.0);
+        snprintf(out, sizeof(out), "%.1f KB", size / 1024.0);
     } else {
-        snprintf(out, out_size, "%.1f MB", size / (1024.0 * 1024.0));
+        snprintf(out, sizeof(out), "%.1f MB", size / (1024.0 * 1024.0));
     }
+    return out;
 }
 
 } // namespace web_server

@@ -28,4 +28,9 @@ struct UploadProgress {
 // internals.
 UploadProgress upload_progress();
 
+// Goes up by one after every upload or delete, so other tasks -- e.g. the
+// OLED display loop -- re-read the card's item count and free space only
+// when it may have changed, instead of walking the card on every refresh.
+uint32_t content_version();
+
 } // namespace web_server

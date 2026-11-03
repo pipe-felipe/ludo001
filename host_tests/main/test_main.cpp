@@ -29,16 +29,18 @@ void test_draw_char_slash_is_diagonal();
 void test_url_encode_leaves_unreserved_untouched();
 void test_url_encode_percent_encodes_space();
 void test_url_encode_percent_encodes_multibyte_utf8();
-void test_url_encode_truncates_safely_when_buffer_small();
+void test_url_encode_keeps_long_name_whole();
 void test_url_decode_plain_roundtrip();
 void test_url_decode_percent_sequences();
 void test_url_decode_invalid_percent_sequence_passed_through();
+void test_url_decode_percent_with_one_digit_at_end_passed_through();
 void test_url_encode_decode_roundtrip();
 void test_is_safe_filename_accepts_plain_name();
 void test_is_safe_filename_rejects_empty();
 void test_is_safe_filename_rejects_leading_slash();
 void test_is_safe_filename_rejects_dotdot();
 void test_is_safe_filename_accepts_dot_in_middle();
+void test_is_safe_filename_rejects_embedded_nul();
 void test_format_size_bytes();
 void test_format_size_kilobytes();
 void test_format_size_megabytes();
@@ -64,6 +66,9 @@ void test_render_file_list_directory_entry_has_zip_link();
 void test_render_file_list_nested_directory_zip_link_includes_current_dir();
 void test_render_file_list_file_entry_has_download_link();
 void test_render_file_list_nested_file_download_link_includes_current_dir();
+void test_render_file_list_file_row_markup();
+void test_render_file_list_directory_row_markup();
+void test_render_file_list_keeps_long_accented_name_whole();
 void test_render_dir_title_root();
 void test_render_dir_title_subdir();
 void test_render_template_substitutes_token();
@@ -83,6 +88,14 @@ void test_zip_end_of_central_dir_layout();
 void test_zip_within_limits_accepts_folder_under_4gb();
 void test_zip_within_limits_rejects_archive_over_4gb();
 void test_zip_within_limits_rejects_too_many_entries();
+
+// dir_scan
+void test_visible_entries_skips_dot_names();
+void test_visible_entries_marks_directories();
+void test_visible_entries_of_missing_dir_is_empty();
+void test_count_entries_of_empty_dir_is_zero();
+void test_count_entries_counts_files_and_folders_at_every_depth();
+void test_count_entries_skips_hidden_folders_and_their_contents();
 
 extern "C" void app_main(void) {
     UNITY_BEGIN();
@@ -110,16 +123,18 @@ extern "C" void app_main(void) {
     RUN_TEST(test_url_encode_leaves_unreserved_untouched);
     RUN_TEST(test_url_encode_percent_encodes_space);
     RUN_TEST(test_url_encode_percent_encodes_multibyte_utf8);
-    RUN_TEST(test_url_encode_truncates_safely_when_buffer_small);
+    RUN_TEST(test_url_encode_keeps_long_name_whole);
     RUN_TEST(test_url_decode_plain_roundtrip);
     RUN_TEST(test_url_decode_percent_sequences);
     RUN_TEST(test_url_decode_invalid_percent_sequence_passed_through);
+    RUN_TEST(test_url_decode_percent_with_one_digit_at_end_passed_through);
     RUN_TEST(test_url_encode_decode_roundtrip);
     RUN_TEST(test_is_safe_filename_accepts_plain_name);
     RUN_TEST(test_is_safe_filename_rejects_empty);
     RUN_TEST(test_is_safe_filename_rejects_leading_slash);
     RUN_TEST(test_is_safe_filename_rejects_dotdot);
     RUN_TEST(test_is_safe_filename_accepts_dot_in_middle);
+    RUN_TEST(test_is_safe_filename_rejects_embedded_nul);
     RUN_TEST(test_format_size_bytes);
     RUN_TEST(test_format_size_kilobytes);
     RUN_TEST(test_format_size_megabytes);
@@ -144,6 +159,9 @@ extern "C" void app_main(void) {
     RUN_TEST(test_render_file_list_nested_directory_zip_link_includes_current_dir);
     RUN_TEST(test_render_file_list_file_entry_has_download_link);
     RUN_TEST(test_render_file_list_nested_file_download_link_includes_current_dir);
+    RUN_TEST(test_render_file_list_file_row_markup);
+    RUN_TEST(test_render_file_list_directory_row_markup);
+    RUN_TEST(test_render_file_list_keeps_long_accented_name_whole);
     RUN_TEST(test_render_dir_title_root);
     RUN_TEST(test_render_dir_title_subdir);
     RUN_TEST(test_render_template_substitutes_token);
@@ -162,6 +180,13 @@ extern "C" void app_main(void) {
     RUN_TEST(test_zip_within_limits_accepts_folder_under_4gb);
     RUN_TEST(test_zip_within_limits_rejects_archive_over_4gb);
     RUN_TEST(test_zip_within_limits_rejects_too_many_entries);
+
+    RUN_TEST(test_visible_entries_skips_dot_names);
+    RUN_TEST(test_visible_entries_marks_directories);
+    RUN_TEST(test_visible_entries_of_missing_dir_is_empty);
+    RUN_TEST(test_count_entries_of_empty_dir_is_zero);
+    RUN_TEST(test_count_entries_counts_files_and_folders_at_every_depth);
+    RUN_TEST(test_count_entries_skips_hidden_folders_and_their_contents);
 
     std::exit(UNITY_END());
 }
