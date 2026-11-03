@@ -299,3 +299,28 @@ sd card: 0 items
 The log has 7 lines and one `sd card:` line. The rest is the repeating `xx` noise that `~/.claude/skills/embedded/SKILL.md` describes as bogus data from long serial reads on this machine.
 
 Step 2 (flash): `exit=0`, but `grep -cE 'Hash of data verified' build/plan-flash.log` printed `1`, the plan expects `3` or more. The esptool in ESP-IDF v6.1 prints `'bootloader/bootloader.bin' at 0x00001000 verified.` and `'partition_table/partition-table.bin' at 0x00008000 verified.` for the two unchanged images and `Hash of data verified.` once for the app. The board then answered HTTP `200`.
+
+### Block 8 — retry after the human chose short serial captures: SD card stopped answering
+
+Serial captures worked with a reset first and 3-4 s reads, retried until under 100000 bytes. Results: N0 = `sd card: 130 items`, after the 4 uploads `sd card: 136 items`. Step 8 then failed:
+
+```
+curl -sS -m 10 http://ludo001.local/files/plan_count_test/ | grep -o '<li>' | wc -l          -> 4
+curl -sS -m 10 http://ludo001.local/files/plan_count_test/ | grep -c 'href="/files/plan_count_test/1-a.txt"'   -> 1
+curl -sS -m 30 http://ludo001.local/files/plan_count_test/a.txt | cmp - README.md; echo "cmp=$?"
+README.md e - são diferentes: byte 1537, linha 41
+cmp=1
+curl -sS -m 60 -o build/plan_count_test.zip http://ludo001.local/zip/plan_count_test; echo "zip=$?"   -> zip=0
+unzip -t build/plan_count_test.zip | tail -1
+  End-of-central-directory signature not found.  Either this file is not
+```
+
+Afterwards every `/files/plan_count_test/...` request answered `404`, `/files` listed `Pasta vazia.`, and the serial log showed:
+
+```
+E (76850) sdmmc_cmd: sdmmc_read_sectors_dma: sdmmc_send_cmd returned 0x107, failed to get status (0x107)
+E (76850) diskio_sdmmc: sdmmc_read_blocks failed (0x107)
+I (76850) ludo001: sd card: 0 items, 72 MB used, 30352 MB free
+```
+
+0x107 is ESP_ERR_TIMEOUT from the SD card over SPI: a hardware or contact problem, not a code defect. `plan_count_test/` may still be on the card (step 9 did not run). Nothing outside `plan_count_test/` was written or deleted.
