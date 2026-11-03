@@ -28,7 +28,8 @@ constexpr int kBarH = 8;
 
 // A firmware fresh from an OTA update has this long after boot to bring up
 // Wi-Fi and the web server, or the bootloader goes back to the previous one.
-constexpr int64_t kNewFirmwareTimeoutUs = 60 * 1000 * 1000;
+constexpr int kNewFirmwareTimeoutS = 60;
+constexpr int64_t kNewFirmwareTimeoutUs = int64_t{kNewFirmwareTimeoutS} * 1000 * 1000;
 
 // Everything the OLED shows, gathered by the loop in app_main.
 struct StatusSnapshot {
@@ -56,13 +57,13 @@ void draw_status(Ssd1306& display, const StatusSnapshot& status) {
     }
 
     fb.draw_rect(kBarX, kBarY, kBarW, kBarH);
-    if (status.progress.active && status.progress.percent > 0) {
+    if (status.progress.kind != web_server::UploadKind::None && status.progress.percent > 0) {
         int fill_w = (kBarW - 2) * status.progress.percent / 100;
         fb.fill_rect(kBarX + 1, kBarY + 1, fill_w, kBarH - 2);
     }
 
     char info_line[24];
-    if (status.progress.active && status.progress.firmware) {
+    if (status.progress.kind == web_server::UploadKind::Firmware) {
         snprintf(info_line, sizeof(info_line), "ATUALIZANDO %u%%", static_cast<unsigned>(status.progress.percent));
     } else {
         snprintf(info_line, sizeof(info_line), "ITENS %lu", static_cast<unsigned long>(status.item_count));
@@ -81,28 +82,37 @@ void draw_status(Ssd1306& display, const StatusSnapshot& status) {
     display.flush();
 }
 
-// True while the running firmware came from an OTA update and hasn't been
-// confirmed yet: unless check_new_firmware() confirms it, the next restart
-// goes back to the previous one.
-bool new_firmware_pending() {
+// True while the running firmware (in `running`, which may be null if the
+// partition can't be found) came from an OTA update and hasn't been confirmed
+// yet: unless check_new_firmware() confirms it, the next restart goes back to
+// the previous one.
+bool new_firmware_pending(const esp_partition_t* running) {
     esp_ota_img_states_t state;
-    return esp_ota_get_state_partition(esp_ota_get_running_partition(), &state) == ESP_OK &&
+    return running != nullptr && esp_ota_get_state_partition(running, &state) == ESP_OK &&
            state == ESP_OTA_IMG_PENDING_VERIFY;
 }
 
 // Confirms a new firmware once Wi-Fi and the web server are both up, since
-// only then can the next update reach the board. Rolls back to the previous
-// firmware (restarting) when kNewFirmwareTimeoutUs passes first. Returns
-// whether the check is still pending.
+// only then can the next update reach the board. If the confirmation can't be
+// written, the firmware stays unconfirmed and the loop tries again. Rolls
+// back to the previous firmware (restarting) when kNewFirmwareTimeoutUs
+// passes first, which also ends those retries. If even the rollback fails
+// (there is no previous firmware to go back to), the check gives up instead
+// of retrying forever. Returns whether the check is still pending.
 bool check_new_firmware(bool wifi_connected) {
     if (wifi_connected && web_server::is_running()) {
-        esp_ota_mark_app_valid_cancel_rollback();
-        ESP_LOGI(kTag, "new firmware confirmed");
-        return false;
+        esp_err_t err = esp_ota_mark_app_valid_cancel_rollback();
+        if (err == ESP_OK) {
+            ESP_LOGI(kTag, "new firmware confirmed");
+            return false;
+        }
+        ESP_LOGE(kTag, "could not confirm the new firmware: %s", esp_err_to_name(err));
     }
     if (esp_timer_get_time() >= kNewFirmwareTimeoutUs) {
-        ESP_LOGE(kTag, "new firmware brought up no Wi-Fi and HTTP in 60 s, rolling back");
-        esp_ota_mark_app_invalid_rollback_and_reboot();
+        ESP_LOGE(kTag, "new firmware not confirmed within %d s, rolling back", kNewFirmwareTimeoutS);
+        esp_err_t err = esp_ota_mark_app_invalid_rollback_and_reboot(); // only returns on failure
+        ESP_LOGE(kTag, "rollback failed, staying on this firmware: %s", esp_err_to_name(err));
+        return false;
     }
     return true;
 }
@@ -111,8 +121,9 @@ bool check_new_firmware(bool wifi_connected) {
 
 extern "C" void app_main(void) {
     const esp_app_desc_t* app = esp_app_get_description();
-    ESP_LOGI(kTag, "firmware %s running from %s", app->version, esp_ota_get_running_partition()->label);
-    bool firmware_pending = new_firmware_pending();
+    const esp_partition_t* running = esp_ota_get_running_partition();
+    ESP_LOGI(kTag, "firmware %s running from %s", app->version, running != nullptr ? running->label : "an unknown partition");
+    bool firmware_pending = new_firmware_pending(running);
 
     Ssd1306 display;
     esp_err_t err = display.init();

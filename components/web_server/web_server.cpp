@@ -1,8 +1,13 @@
 #include "web_server.hpp"
 
+#include <algorithm>
+#include <array>
 #include <atomic>
 #include <cstdio>
 #include <cstring>
+#include <iterator>
+#include <span>
+#include <string_view>
 #include <sys/stat.h>
 #include <unistd.h>
 #include <vector>
@@ -10,6 +15,7 @@
 #include "dir_scan.hpp"
 #include "esp_app_desc.h"
 #include "esp_http_server.h"
+#include "esp_image_format.h"
 #include "esp_log.h"
 #include "esp_ota_ops.h"
 #include "esp_system.h"
@@ -30,12 +36,18 @@ namespace {
 constexpr char kTag[] = "web_server";
 constexpr char kHostname[] = "ludo001"; // reachable at http://ludo001.local/
 
+// web_content can't include these headers (no linux build), so it repeats
+// their values; this is where they are checked against the real ones.
+static_assert(kImageHeaderSize == sizeof(esp_image_header_t), "image header size changed");
+static_assert(kSegmentHeaderSize == sizeof(esp_image_segment_header_t), "segment header size changed");
+static_assert(kImageMagic == ESP_IMAGE_HEADER_MAGIC, "image magic changed");
+
 httpd_handle_t s_server = nullptr;
 bool s_mdns_started = false;
 
 // Written by the httpd task inside recv_body, read by the display loop (a
 // different task); a spinlock keeps the read/write atomic without pulling
-// in a full mutex for three small fields.
+// in a full mutex for two small fields.
 portMUX_TYPE s_progress_lock = portMUX_INITIALIZER_UNLOCKED;
 UploadProgress s_progress;
 
@@ -259,14 +271,14 @@ std::string unused_name(const std::string& name) {
 
 // Reads the rest of the request body, from byte `done` on, in chunks of up
 // to 1 KB, handing each one to `on_chunk`, which returns nullptr or the
-// reason to stop. Keeps the OLED's progress bar up to date meanwhile;
-// `firmware` only labels that progress. nullptr once the whole body is in,
-// otherwise the reason it stopped.
+// reason to stop. Keeps the OLED's progress bar up to date meanwhile; `kind`
+// only labels that progress. nullptr once the whole body is in, otherwise
+// the reason it stopped.
 template <typename OnChunk>
-const char* recv_body(httpd_req_t* req, int done, bool firmware, OnChunk on_chunk) {
+const char* recv_body(httpd_req_t* req, int done, UploadKind kind, OnChunk on_chunk) {
     const int total = req->content_len;
     const char* error = nullptr;
-    set_progress({true, 0, firmware});
+    set_progress({kind, 0});
 
     char buffer[1024];
     while (done < total && error == nullptr) {
@@ -278,10 +290,10 @@ const char* recv_body(httpd_req_t* req, int done, bool firmware, OnChunk on_chun
         if (received <= 0) {
             error = "upload interrupted";
         } else {
-            error = on_chunk(buffer, received);
+            error = on_chunk(std::string_view(buffer, received));
             done += received;
             // 64-bit product: done * 100 overflows an int past 21 MB.
-            set_progress({true, static_cast<uint8_t>(static_cast<uint64_t>(done) * 100 / total), firmware});
+            set_progress({kind, static_cast<uint8_t>(static_cast<uint64_t>(done) * 100 / total)});
         }
     }
     set_progress({});
@@ -297,8 +309,8 @@ const char* store_body(httpd_req_t* req, const std::string& path) {
         return "could not open file for writing";
     }
 
-    const char* error = recv_body(req, 0, false, [file](const char* data, int len) -> const char* {
-        return fwrite(data, 1, len, file) == static_cast<size_t>(len) ? nullptr : "could not write file";
+    const char* error = recv_body(req, 0, UploadKind::File, [file](std::string_view data) -> const char* {
+        return fwrite(data.data(), 1, data.size(), file) == data.size() ? nullptr : "could not write file";
     });
     fclose(file);
     if (error != nullptr) {
@@ -321,7 +333,7 @@ esp_err_t send_restart_pending(httpd_req_t* req) {
 // creates whatever directories that needs first. A name that already
 // exists on the card gets a number prefix instead of being overwritten.
 esp_err_t upload_handler(httpd_req_t* req) {
-    if (s_restart_pending) {
+    if (s_restart_pending.load()) {
         return send_restart_pending(req);
     }
 
@@ -549,11 +561,11 @@ esp_err_t zip_handler(httpd_req_t* req) {
     return ESP_OK;
 }
 
-// Fills `buffer` with the next `len` bytes of the request body. False if
-// the client went away first.
-bool recv_exact(httpd_req_t* req, char* buffer, int len) {
-    for (int got = 0; got < len;) {
-        int received = httpd_req_recv(req, buffer + got, len - got);
+// Fills `buffer` with the next bytes of the request body. False if the
+// client went away first.
+bool recv_exact(httpd_req_t* req, std::span<char> buffer) {
+    for (size_t got = 0; got < buffer.size();) {
+        int received = httpd_req_recv(req, buffer.data() + got, buffer.size() - got);
         if (received == HTTPD_SOCK_ERR_TIMEOUT) {
             continue;
         }
@@ -565,12 +577,20 @@ bool recv_exact(httpd_req_t* req, char* buffer, int len) {
     return true;
 }
 
-// Writes the image whose first `head_len` bytes are `head` (the rest still
-// unread in the request body) to `partition`, then has esp_ota_end() check
-// the whole image, signature included. On a failure it answers the request
-// itself and returns false; the partition the board boots from is never
-// touched.
-bool write_firmware(httpd_req_t* req, const esp_partition_t* partition, const char* head, int head_len) {
+// Answers a POST that is refused before its body was read, and returns
+// ESP_OK on purpose: httpd then reads and discards the rest of the body, so
+// the client gets `status` instead of a connection reset (ESP_FAIL would
+// close the socket).
+esp_err_t reject_unread_body(httpd_req_t* req, httpd_err_code_t status, const char* message) {
+    httpd_resp_send_err(req, status, message);
+    return ESP_OK;
+}
+
+// Writes the image whose first bytes are `head` (the rest still unread in
+// the request body) to `partition`, then has esp_ota_end() check the whole
+// image, signature included. On a failure it answers the request itself and
+// returns false; the partition the board boots from is never touched.
+bool write_firmware(httpd_req_t* req, const esp_partition_t* partition, std::string_view head) {
     esp_ota_handle_t handle = 0;
     esp_err_t err = esp_ota_begin(partition, OTA_WITH_SEQUENTIAL_WRITES, &handle);
     if (err != ESP_OK) {
@@ -579,15 +599,18 @@ bool write_firmware(httpd_req_t* req, const esp_partition_t* partition, const ch
         return false;
     }
 
-    auto write_chunk = [handle](const char* data, int len) -> const char* {
-        return esp_ota_write(handle, data, len) == ESP_OK ? nullptr : "could not write firmware";
+    auto write_chunk = [handle](std::string_view data) -> const char* {
+        return esp_ota_write(handle, data.data(), data.size()) == ESP_OK ? nullptr : "could not write firmware";
     };
-    const char* error = write_chunk(head, head_len);
+    const char* error = write_chunk(head);
     if (error == nullptr) {
-        error = recv_body(req, head_len, true, write_chunk);
+        error = recv_body(req, static_cast<int>(head.size()), UploadKind::Firmware, write_chunk);
     }
     if (error != nullptr) {
-        esp_ota_abort(handle);
+        err = esp_ota_abort(handle);
+        if (err != ESP_OK) {
+            ESP_LOGW(kTag, "esp_ota_abort failed: %s", esp_err_to_name(err));
+        }
         httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, error);
         return false;
     }
@@ -617,7 +640,12 @@ void schedule_restart() {
         .skip_unhandled_events = false,
     };
     esp_timer_handle_t timer = nullptr;
-    if (esp_timer_create(&args, &timer) != ESP_OK || esp_timer_start_once(timer, kRestartDelayUs) != ESP_OK) {
+    esp_err_t err = esp_timer_create(&args, &timer);
+    if (err == ESP_OK) {
+        err = esp_timer_start_once(timer, kRestartDelayUs);
+    }
+    if (err != ESP_OK) {
+        ESP_LOGW(kTag, "restart timer failed (%s), restarting now", esp_err_to_name(err));
         esp_restart();
     }
 }
@@ -628,35 +656,33 @@ void schedule_restart() {
 // fits the partition and the image was built for this project; then
 // esp_ota_end() checks the whole image and its signature
 // (CONFIG_SECURE_SIGNED_ON_UPDATE_NO_SECURE_BOOT) before the boot partition
-// changes. The rejections before the body is read return ESP_OK, so httpd
-// reads and discards the rest of the body: the client gets the error
-// status instead of a connection reset.
+// changes. The rejections before the body is read go through
+// reject_unread_body(); a failure after that returns ESP_FAIL, which closes
+// the connection.
 esp_err_t firmware_handler(httpd_req_t* req) {
-    if (s_restart_pending) {
+    if (s_restart_pending.load()) {
         return send_restart_pending(req);
     }
 
     const esp_partition_t* partition = esp_ota_get_next_update_partition(nullptr);
     if (partition == nullptr) {
-        httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "no OTA partition to update");
-        return ESP_OK;
+        return reject_unread_body(req, HTTPD_500_INTERNAL_SERVER_ERROR, "no OTA partition to update");
     }
     if (!firmware_size_fits(req->content_len, partition->size)) {
-        httpd_resp_send_err(req, HTTPD_413_CONTENT_TOO_LARGE, "firmware image empty or larger than the update partition");
-        return ESP_OK;
+        return reject_unread_body(req, HTTPD_413_CONTENT_TOO_LARGE, "firmware image empty or larger than the update partition");
     }
 
-    char head[kFirmwareHeadSize];
-    const int head_len = static_cast<int>(req->content_len < kFirmwareHeadSize ? req->content_len : kFirmwareHeadSize);
-    if (!recv_exact(req, head, head_len)) {
+    std::array<char, kFirmwareHeadSize> head_buffer{};
+    const size_t head_len = std::min(req->content_len, head_buffer.size());
+    if (!recv_exact(req, std::span(head_buffer).first(head_len))) {
         return ESP_FAIL; // the client went away
     }
-    if (!firmware_head_matches(std::string_view(head, head_len), esp_app_get_description()->project_name)) {
-        httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "not a ludo001 firmware image");
-        return ESP_OK;
+    const std::string_view head(head_buffer.data(), head_len);
+    if (!firmware_head_matches(head, esp_app_get_description()->project_name)) {
+        return reject_unread_body(req, HTTPD_400_BAD_REQUEST, "not a ludo001 firmware image");
     }
 
-    if (!write_firmware(req, partition, head, head_len)) {
+    if (!write_firmware(req, partition, head)) {
         return ESP_FAIL;
     }
     esp_err_t err = esp_ota_set_boot_partition(partition);
@@ -666,9 +692,11 @@ esp_err_t firmware_handler(httpd_req_t* req) {
         return ESP_FAIL;
     }
 
-    s_restart_pending = true;
-    ESP_LOGI(kTag, "firmware written to %s (%u bytes), restarting", partition->label, static_cast<unsigned>(req->content_len));
-    httpd_resp_sendstr(req, "OK");
+    s_restart_pending.store(true);
+    ESP_LOGI(kTag, "firmware written to %s (%zu bytes), restarting", partition->label, req->content_len);
+    if (httpd_resp_sendstr(req, "OK") != ESP_OK) {
+        ESP_LOGW(kTag, "could not send the OK before restarting");
+    }
     schedule_restart();
     return ESP_OK;
 }
@@ -736,6 +764,11 @@ constexpr httpd_uri_t kFirmwareUri = {
     .user_ctx = nullptr,
 };
 
+// Every route start() registers; add a new one here.
+constexpr const httpd_uri_t* kUris[] = {
+    &kRootUri, &kStyleCssUri, &kAppJsUri, &kFilesPageUri, &kFilesItemUri, &kUploadUri, &kDeleteUri, &kZipUri,
+    &kFirmwareUri};
+
 } // namespace
 
 esp_err_t start() {
@@ -749,7 +782,7 @@ esp_err_t start() {
     // confirmed via a captured StoreProhibited panic while browsing a
     // subdirectory.
     config.stack_size = 8192;
-    config.max_uri_handlers = 12; // the 9 routes registered below, plus room for 3 more
+    config.max_uri_handlers = static_cast<uint16_t>(std::size(kUris)); // one slot per route
     esp_err_t err = httpd_start(&s_server, &config);
     if (err != ESP_OK) {
         ESP_LOGE(kTag, "httpd_start failed: %s", esp_err_to_name(err));
@@ -757,10 +790,7 @@ esp_err_t start() {
         return err;
     }
 
-    const httpd_uri_t* uris[] = {
-        &kRootUri, &kStyleCssUri, &kAppJsUri, &kFilesPageUri, &kFilesItemUri, &kUploadUri, &kDeleteUri, &kZipUri,
-        &kFirmwareUri};
-    for (const httpd_uri_t* uri : uris) {
+    for (const httpd_uri_t* uri : kUris) {
         err = httpd_register_uri_handler(s_server, uri);
         if (err != ESP_OK) {
             ESP_LOGE(kTag, "httpd_register_uri_handler(%s) failed: %s", uri->uri, esp_err_to_name(err));

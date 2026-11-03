@@ -308,7 +308,7 @@ O HTML/CSS/JS da interface e o servidor em si (`httpd`, cartão SD, atualizaçã
 - **Texto da interface** em português **sem acentos** (`Apagar`, `Pasta vazia`, `Baixar`); mensagens de erro HTTP e logs em inglês.
 - **Nova lógica pura:** coloque em `web_content`, escreva o teste em `host_tests/main/test_*.cpp`, declare-o e registre-o com `RUN_TEST(...)` em `test_main.cpp`.
 - **Espaço no firmware:** cada partição de aplicação tem 1700 KB, e o firmware assinado ocupa pouco mais de 1 MB, então sobram perto de 700 KB. A folga aparece no fim do `idf.py build`.
-- **Rotas HTTP:** o servidor registra 9 rotas e aceita até 12 (`config.max_uri_handlers` em `web_server.cpp`). Para passar disso, aumente esse número.
+- **Rotas HTTP:** as rotas ficam na lista `kUris` de `web_server.cpp`, e `config.max_uri_handlers` acompanha o tamanho dela. Para adicionar uma, inclua-a nessa lista.
 - **Configuração:** as opções de que o projeto depende (flash de 4 MB, partições de OTA, rollback, imagens assinadas) ficam em `sdkconfig.defaults`. Depois de mudar esse arquivo, rode `idf.py reconfigure`.
 - **Commits:** uma linha de assunto, em inglês, no imperativo, sem ponto final (`Add a search box that filters the files in the current folder`).
 

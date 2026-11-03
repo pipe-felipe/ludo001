@@ -2,6 +2,7 @@
 
 #include <cstdlib>
 #include <cstring>
+#include <span>
 
 namespace oled_display {
 namespace {
@@ -68,10 +69,62 @@ constexpr Segment kGlyphZ[] = {{0, 0, 4, 0}, {4, 0, 0, 6}, {0, 6, 4, 6}};
 constexpr Segment kGlyphMinus[] = {kSegMiddle};
 constexpr Segment kGlyphPercent[] = {{0, 6, 4, 0}, {0, 0, 1, 0}, {0, 1, 1, 1}, {3, 5, 4, 5}, {3, 6, 4, 6}};
 
-template <size_t N>
-void select_glyph(const Segment*& segs, size_t& count, const Segment (&arr)[N]) {
-    segs = arr;
-    count = N;
+// The characters draw_char() can draw with a stroke list (it draws '.', '/'
+// and ':' itself), each with the segments that make it up.
+struct Glyph {
+    char c;
+    std::span<const Segment> segments;
+};
+
+constexpr Glyph kGlyphs[] = {
+    {'0', kGlyph0},
+    {'1', kGlyph1},
+    {'2', kGlyph2},
+    {'3', kGlyph3},
+    {'4', kGlyph4},
+    {'5', kGlyph5},
+    {'6', kGlyph6},
+    {'7', kGlyph7},
+    {'8', kGlyph8},
+    {'9', kGlyph9},
+    {'A', kGlyphA},
+    {'B', kGlyphB},
+    {'C', kGlyphC},
+    {'D', kGlyphD},
+    {'E', kGlyphE},
+    {'F', kGlyphF},
+    {'G', kGlyphG},
+    {'H', kGlyphH},
+    {'I', kGlyphI},
+    {'J', kGlyphJ},
+    {'K', kGlyphK},
+    {'L', kGlyphL},
+    {'M', kGlyphM},
+    {'N', kGlyphN},
+    {'O', kGlyphO},
+    {'P', kGlyphP},
+    {'Q', kGlyphQ},
+    {'R', kGlyphR},
+    {'S', kGlyphS},
+    {'T', kGlyphT},
+    {'U', kGlyphU},
+    {'V', kGlyphV},
+    {'W', kGlyphW},
+    {'X', kGlyphX},
+    {'Y', kGlyphY},
+    {'Z', kGlyphZ},
+    {'-', kGlyphMinus},
+    {'%', kGlyphPercent},
+};
+
+// The segments of `c`, or none if the font has no stroke list for it.
+std::span<const Segment> glyph_segments(char c) {
+    for (const Glyph& glyph : kGlyphs) {
+        if (glyph.c == c) {
+            return glyph.segments;
+        }
+    }
+    return {};
 }
 
 } // namespace
@@ -151,48 +204,7 @@ void Framebuffer::draw_char(int x, int y, char c, bool on) {
         c = static_cast<char>(c - ('a' - 'A'));
     }
 
-    const Segment* segs = nullptr;
-    size_t count = 0;
-
     switch (c) {
-        case '0': select_glyph(segs, count, kGlyph0); break;
-        case '1': select_glyph(segs, count, kGlyph1); break;
-        case '2': select_glyph(segs, count, kGlyph2); break;
-        case '3': select_glyph(segs, count, kGlyph3); break;
-        case '4': select_glyph(segs, count, kGlyph4); break;
-        case '5': select_glyph(segs, count, kGlyph5); break;
-        case '6': select_glyph(segs, count, kGlyph6); break;
-        case '7': select_glyph(segs, count, kGlyph7); break;
-        case '8': select_glyph(segs, count, kGlyph8); break;
-        case '9': select_glyph(segs, count, kGlyph9); break;
-        case 'A': select_glyph(segs, count, kGlyphA); break;
-        case 'B': select_glyph(segs, count, kGlyphB); break;
-        case 'C': select_glyph(segs, count, kGlyphC); break;
-        case 'D': select_glyph(segs, count, kGlyphD); break;
-        case 'E': select_glyph(segs, count, kGlyphE); break;
-        case 'F': select_glyph(segs, count, kGlyphF); break;
-        case 'G': select_glyph(segs, count, kGlyphG); break;
-        case 'H': select_glyph(segs, count, kGlyphH); break;
-        case 'I': select_glyph(segs, count, kGlyphI); break;
-        case 'J': select_glyph(segs, count, kGlyphJ); break;
-        case 'K': select_glyph(segs, count, kGlyphK); break;
-        case 'L': select_glyph(segs, count, kGlyphL); break;
-        case 'M': select_glyph(segs, count, kGlyphM); break;
-        case 'N': select_glyph(segs, count, kGlyphN); break;
-        case 'O': select_glyph(segs, count, kGlyphO); break;
-        case 'P': select_glyph(segs, count, kGlyphP); break;
-        case 'Q': select_glyph(segs, count, kGlyphQ); break;
-        case 'R': select_glyph(segs, count, kGlyphR); break;
-        case 'S': select_glyph(segs, count, kGlyphS); break;
-        case 'T': select_glyph(segs, count, kGlyphT); break;
-        case 'U': select_glyph(segs, count, kGlyphU); break;
-        case 'V': select_glyph(segs, count, kGlyphV); break;
-        case 'W': select_glyph(segs, count, kGlyphW); break;
-        case 'X': select_glyph(segs, count, kGlyphX); break;
-        case 'Y': select_glyph(segs, count, kGlyphY); break;
-        case 'Z': select_glyph(segs, count, kGlyphZ); break;
-        case '-': select_glyph(segs, count, kGlyphMinus); break;
-        case '%': select_glyph(segs, count, kGlyphPercent); break;
         case '.':
             set_pixel(x + 1, y + kGlyphHeight - 1, on);
             return;
@@ -204,11 +216,12 @@ void Framebuffer::draw_char(int x, int y, char c, bool on) {
             set_pixel(x + 2, y + 5, on);
             return;
         default:
-            return; // space or unsupported character: just advance
+            break;
     }
 
-    for (size_t i = 0; i < count; ++i) {
-        draw_line(x + segs[i].x0, y + segs[i].y0, x + segs[i].x1, y + segs[i].y1, on);
+    // A space or an unsupported character has no segments: just advance.
+    for (const Segment& segment : glyph_segments(c)) {
+        draw_line(x + segment.x0, y + segment.y0, x + segment.x1, y + segment.y1, on);
     }
 }
 

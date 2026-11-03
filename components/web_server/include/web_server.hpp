@@ -18,10 +18,13 @@ esp_err_t start();
 esp_err_t stop();
 bool is_running();
 
+// What is being received: nothing, a file for the SD card (POST /upload) or a
+// firmware image (POST /firmware).
+enum class UploadKind { None, File, Firmware };
+
 struct UploadProgress {
-    bool active = false;
+    UploadKind kind = UploadKind::None;
     uint8_t percent = 0;
-    bool firmware = false; // a firmware update (POST /firmware), not a file upload
 };
 
 // Snapshot of the upload or firmware update in progress (if any), so other
