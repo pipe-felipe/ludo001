@@ -97,6 +97,17 @@ void test_count_entries_of_empty_dir_is_zero();
 void test_count_entries_counts_files_and_folders_at_every_depth();
 void test_count_entries_skips_hidden_folders_and_their_contents();
 
+// web_server_firmware
+void test_firmware_size_fits_up_to_partition_size();
+void test_firmware_size_fits_rejects_empty_image();
+void test_firmware_size_fits_rejects_image_larger_than_partition();
+void test_firmware_head_matches_own_project();
+void test_firmware_head_matches_rejects_other_project();
+void test_firmware_head_matches_rejects_longer_or_shorter_name();
+void test_firmware_head_matches_rejects_bad_image_magic();
+void test_firmware_head_matches_rejects_bad_app_desc_magic();
+void test_firmware_head_matches_rejects_short_head();
+
 extern "C" void app_main(void) {
     UNITY_BEGIN();
 
@@ -187,6 +198,16 @@ extern "C" void app_main(void) {
     RUN_TEST(test_count_entries_of_empty_dir_is_zero);
     RUN_TEST(test_count_entries_counts_files_and_folders_at_every_depth);
     RUN_TEST(test_count_entries_skips_hidden_folders_and_their_contents);
+
+    RUN_TEST(test_firmware_size_fits_up_to_partition_size);
+    RUN_TEST(test_firmware_size_fits_rejects_empty_image);
+    RUN_TEST(test_firmware_size_fits_rejects_image_larger_than_partition);
+    RUN_TEST(test_firmware_head_matches_own_project);
+    RUN_TEST(test_firmware_head_matches_rejects_other_project);
+    RUN_TEST(test_firmware_head_matches_rejects_longer_or_shorter_name);
+    RUN_TEST(test_firmware_head_matches_rejects_bad_image_magic);
+    RUN_TEST(test_firmware_head_matches_rejects_bad_app_desc_magic);
+    RUN_TEST(test_firmware_head_matches_rejects_short_head);
 
     std::exit(UNITY_END());
 }

@@ -300,7 +300,7 @@ path of its file. Searching for it must land on the block.
 | # | Block | Where | Status |
 |---|---|---|---|
 | 1 | Switch to 4 MB flash, two OTA partitions, app rollback and signed images | `PLAN/01-ota-config.md` | DONE |
-| 2 | Add the firmware image checks to web_content, with host tests | `PLAN/02-firmware-image-checks.md` | TODO |
+| 2 | Add the firmware image checks to web_content, with host tests | `PLAN/02-firmware-image-checks.md` | DONE |
 | 3 | Complete the OLED font with every letter, '-' and '%' | `PLAN/03-oled-font.md` | TODO |
 | 4 | Add POST /firmware to web_server | `PLAN/04-firmware-route.md` | TODO |
 | 5 | Confirm a new firmware after Wi-Fi and HTTP come up, and show it on the OLED | `PLAN/05-boot-check-and-oled.md` | TODO |
