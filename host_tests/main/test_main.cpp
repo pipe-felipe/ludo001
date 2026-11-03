@@ -84,6 +84,14 @@ void test_zip_within_limits_accepts_folder_under_4gb();
 void test_zip_within_limits_rejects_archive_over_4gb();
 void test_zip_within_limits_rejects_too_many_entries();
 
+// dir_scan
+void test_visible_entries_skips_dot_names();
+void test_visible_entries_marks_directories();
+void test_visible_entries_of_missing_dir_is_empty();
+void test_count_entries_of_empty_dir_is_zero();
+void test_count_entries_counts_files_and_folders_at_every_depth();
+void test_count_entries_skips_hidden_folders_and_their_contents();
+
 extern "C" void app_main(void) {
     UNITY_BEGIN();
 
@@ -162,6 +170,13 @@ extern "C" void app_main(void) {
     RUN_TEST(test_zip_within_limits_accepts_folder_under_4gb);
     RUN_TEST(test_zip_within_limits_rejects_archive_over_4gb);
     RUN_TEST(test_zip_within_limits_rejects_too_many_entries);
+
+    RUN_TEST(test_visible_entries_skips_dot_names);
+    RUN_TEST(test_visible_entries_marks_directories);
+    RUN_TEST(test_visible_entries_of_missing_dir_is_empty);
+    RUN_TEST(test_count_entries_of_empty_dir_is_zero);
+    RUN_TEST(test_count_entries_counts_files_and_folders_at_every_depth);
+    RUN_TEST(test_count_entries_skips_hidden_folders_and_their_contents);
 
     std::exit(UNITY_END());
 }

@@ -10,6 +10,7 @@ set(COMPONENTS main)
 list(APPEND EXTRA_COMPONENT_DIRS
     "${CMAKE_CURRENT_LIST_DIR}/../components/framebuffer"
     "${CMAKE_CURRENT_LIST_DIR}/../components/web_content"
+    "${CMAKE_CURRENT_LIST_DIR}/../components/dir_scan"
 )
 
 project(ludo001_host_tests)
