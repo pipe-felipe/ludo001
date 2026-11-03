@@ -306,7 +306,7 @@ path of its file. Searching for it must land on the block.
 | 5 | Confirm a new firmware after Wi-Fi and HTTP come up, and show it on the OLED | `PLAN/05-boot-check-and-oled.md` | DONE |
 | 6 | Add the Firmware card to the status page | `PLAN/06-status-page.md` | DONE |
 | 7 | Flash once over USB and test OTA on the board | `PLAN/07-board-tests.md` | DONE |
-| 8 | Document firmware updates in the READMEs | `PLAN/08-docs.md` | TODO |
+| 8 | Document firmware updates in the READMEs | `PLAN/08-docs.md` | DONE |
 | 9 | Verify everything and remove the plan | `PLAN/09-cleanup.md` | TODO |
 
 Statuses: `TODO` → `DONE`, or `BLOCKED` (see §11 R12).

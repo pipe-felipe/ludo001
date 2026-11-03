@@ -3,7 +3,8 @@
 Unit tests for the parts of this project with no hardware/network
 dependency: `framebuffer` (OLED pixel/text drawing), `web_content`
 (the web server's string-building logic -- URL encode/decode, filename
-safety, file-size formatting, HTML fragment rendering) and `dir_scan`
+safety, file-size formatting, HTML fragment rendering, firmware image
+header checks) and `dir_scan`
 (listing and counting directory entries, tested against a scratch
 directory under the system temp dir). They build as a native executable
 via ESP-IDF's `linux` target and run directly on this machine, no board
