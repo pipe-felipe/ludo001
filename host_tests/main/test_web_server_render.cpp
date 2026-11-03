@@ -131,6 +131,38 @@ void test_render_file_list_nested_file_download_link_includes_current_dir() {
     TEST_ASSERT_NOT_NULL(strstr(html.c_str(), "<a class=\"zip\" href=\"/files/folder1/file.txt\">Baixar</a>"));
 }
 
+void test_render_file_list_file_row_markup() {
+    std::vector<FileEntry> entries = {{"a.txt", "1 B"}};
+    TEST_ASSERT_EQUAL_STRING("<ul><li><a href=\"/files/a.txt\">a.txt</a><span class=\"size\">1 B</span>"
+                             "<a class=\"zip\" href=\"/files/a.txt\">Baixar</a>"
+                             "<button class=\"del\" data-name=\"a.txt\" onclick=\"del(this)\">Apagar</button></li></ul>",
+        render_file_list(entries, "").c_str());
+}
+
+void test_render_file_list_directory_row_markup() {
+    FileEntry dir_entry;
+    dir_entry.name = "pasta";
+    dir_entry.is_dir = true;
+    TEST_ASSERT_EQUAL_STRING("<ul><li><a class=\"dir\" href=\"/files/pasta/\">pasta/</a><span class=\"size\"></span>"
+                             "<a class=\"zip\" href=\"/zip/pasta\">Baixar</a>"
+                             "<button class=\"del\" data-name=\"pasta\" onclick=\"del(this)\">Apagar</button></li></ul>",
+        render_file_list({dir_entry}, "").c_str());
+}
+
+void test_render_file_list_keeps_long_accented_name_whole() {
+    std::string name;
+    std::string encoded;
+    for (int i = 0; i < 100; ++i) { // 200 bytes of "é", 600 once encoded
+        name += "\xc3\xa9";
+        encoded += "%C3%A9";
+    }
+    std::vector<FileEntry> entries = {{name + ".txt", "1 B"}};
+    std::string html = render_file_list(entries, "");
+    TEST_ASSERT_NOT_NULL(strstr(html.c_str(), ("href=\"/files/" + encoded + ".txt\"").c_str()));
+    TEST_ASSERT_NOT_NULL(strstr(html.c_str(), ("data-name=\"" + encoded + ".txt\"").c_str()));
+    TEST_ASSERT_NOT_NULL(strstr(html.c_str(), "</button></li></ul>"));
+}
+
 void test_render_dir_title_root() {
     TEST_ASSERT_EQUAL_STRING("Arquivos no SD", render_dir_title("").c_str());
 }

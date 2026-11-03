@@ -5,6 +5,29 @@
 #include "web_server_util.hpp"
 
 namespace web_server {
+namespace {
+
+// Appends one <li> of the listing. `rel_path` is the entry's encoded path
+// from the card's root: a folder opens with a trailing '/' and downloads
+// as a .zip, a file opens and downloads as itself.
+void append_entry(std::string& out, const FileEntry& entry, const std::string& rel_path) {
+    const char* dir_suffix = entry.is_dir ? "/" : "";
+    out += entry.is_dir ? "<li><a class=\"dir\" href=\"/files/" : "<li><a href=\"/files/";
+    out += rel_path;
+    out += dir_suffix;
+    out += "\">";
+    out += entry.name;
+    out += dir_suffix;
+    out += "</a><span class=\"size\">";
+    out += entry.size_text;
+    out += entry.is_dir ? "</span><a class=\"zip\" href=\"/zip/" : "</span><a class=\"zip\" href=\"/files/";
+    out += rel_path;
+    out += "\">Baixar</a><button class=\"del\" data-name=\"";
+    out += rel_path;
+    out += "\" onclick=\"del(this)\">Apagar</button></li>";
+}
+
+} // namespace
 
 std::string render_wifi_line(bool connected, const char* ip) {
     if (!connected) {
@@ -52,25 +75,9 @@ std::string render_file_list(const std::vector<FileEntry>& entries, const std::s
     }
 
     out += "<ul>";
-    char item[1800];
     for (const FileEntry& entry : entries) {
         std::string encoded_name = url_encode(entry.name);
-        std::string rel_path = current_dir.empty() ? encoded_name : current_dir + "/" + encoded_name;
-
-        if (entry.is_dir) {
-            snprintf(item, sizeof(item),
-                "<li><a class=\"dir\" href=\"/files/%s/\">%s/</a><span class=\"size\"></span>"
-                "<a class=\"zip\" href=\"/zip/%s\">Baixar</a>"
-                "<button class=\"del\" data-name=\"%s\" onclick=\"del(this)\">Apagar</button></li>",
-                rel_path.c_str(), entry.name.c_str(), rel_path.c_str(), rel_path.c_str());
-        } else {
-            snprintf(item, sizeof(item),
-                "<li><a href=\"/files/%s\">%s</a><span class=\"size\">%s</span>"
-                "<a class=\"zip\" href=\"/files/%s\">Baixar</a>"
-                "<button class=\"del\" data-name=\"%s\" onclick=\"del(this)\">Apagar</button></li>",
-                rel_path.c_str(), entry.name.c_str(), entry.size_text.c_str(), rel_path.c_str(), rel_path.c_str());
-        }
-        out += item;
+        append_entry(out, entry, current_dir.empty() ? encoded_name : current_dir + "/" + encoded_name);
     }
     out += "</ul>";
     return out;

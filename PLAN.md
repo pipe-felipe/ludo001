@@ -255,7 +255,7 @@ path of its file. Searching for it must land on the block.
 | 2 | Route web_server's directory walks and downloads through shared helpers | `PLAN/02-web-server-helpers.md` | DONE |
 | 3 | Split the upload and zip handlers and publish content_version() | `PLAN/03-web-server-upload-zip.md` | DONE |
 | 4 | Return std::string from url_encode, url_decode and format_size | `PLAN/04-util-strings.md` | DONE |
-| 5 | Build the file list rows without fixed buffers | `PLAN/05-render-file-list.md` | TODO |
+| 5 | Build the file list rows without fixed buffers | `PLAN/05-render-file-list.md` | DONE |
 | 6 | Count every file and folder on the OLED, only after a change | `PLAN/06-oled-count.md` | TODO |
 | 7 | Document the new item count and dir_scan | `PLAN/07-docs.md` | TODO |
 | 8 | Verify everything and remove the plan | `PLAN/08-cleanup.md` | TODO |
